@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "VOLT",
+      "hasCanvas": false,
+      "bodyTextLen": 1598,
+      "bodyTextHash": "3d2938ba7165b01a7b292ca9336542b982b3d240a67a32491db5c01dac520850",
+      "bodyTextPrefix": "VOLT SYDNEY TG session 22:13:00 EQUITY $173,140.00 FLOAT $0.00 H",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "VOLT",
+      "hasCanvas": false,
+      "bodyTextLen": 1019,
+      "bodyTextHash": "781866c31b6a095786f42b2c8a9c530e558cdcf225d67bca075d9646126f499c",
+      "bodyTextPrefix": "VOLT COMMAND Desk Numbered signals in, sized by risk, routed to ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
