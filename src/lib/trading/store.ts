@@ -113,6 +113,7 @@ export interface DeskState extends DeskSnapshot {
   disconnectTelegram: () => void;
   resetDesk: () => void;
   consumeEvents: () => void;
+  refreshLiveState: () => Promise<void>;
 }
 
 export type BulkMode =
@@ -664,6 +665,57 @@ export const useDesk = create<DeskState>((set, get) => {
     },
 
     consumeEvents: () => set({ lastEvents: [] }),
+
+    refreshLiveState: async () => {
+      const s = get();
+      if (s.settings.paper) return;
+      try {
+        const response = await fetch("/api/bridge/accounts", { cache: "no-store" });
+        if (!response.ok) throw new Error(`bridge_accounts_${response.status}`);
+        const data = await response.json() as { accounts?: Account[] };
+        const accounts = Array.isArray(data.accounts) ? data.accounts : [];
+        set({
+          accounts: accounts.map((a) => ({ ...a, receivesSignals: false, frozen: false })),
+          positions: [],
+          orders: [],
+          history: [],
+          signals: [],
+          messages: [],
+          sources: [],
+          telegram: {
+            connected: false,
+            connecting: false,
+            user: null,
+            phone: null,
+            lastIngestAt: null,
+          },
+          equity: accounts.length
+            ? [{ t: Date.now(), equity: accounts.reduce((sum, a) => sum + a.equity, 0) }]
+            : [],
+          now: Date.now(),
+          log: accounts.length
+            ? [{
+                id: `ev_bridge_sync_${Date.now()}`,
+                at: Date.now(),
+                kind: "bridge",
+                text: `Synchronized ${accounts.length} live broker terminal(s)`,
+              }, ...get().log].slice(0, 160)
+            : [],
+        });
+      } catch {
+        set({
+          accounts: [],
+          positions: [],
+          orders: [],
+          history: [],
+          signals: [],
+          messages: [],
+          sources: [],
+          telegram: { connected: false, connecting: false, user: null, phone: null, lastIngestAt: null },
+          equity: [],
+        });
+      }
+    },
   };
 });
 
@@ -681,32 +733,9 @@ function pumpTelegram() {
 export function startDesk() {
   const st = useDesk.getState();
   if (st.running) return;
-  try {
-    const raw = localStorage.getItem(LS_KEY) ?? localStorage.getItem("volt-desk-v1");
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<DeskSnapshot>;
-      useDesk.setState({
-        ...st,
-        ...parsed,
-        bridge: { ...DEFAULT_BRIDGE, ...parsed.bridge },
-        telegram: {
-          connected: false,
-          connecting: false,
-          user: null,
-          phone: null,
-          lastIngestAt: null,
-          ...parsed.telegram,
-        },
-        quotes: st.quotes,
-        now: Date.now(),
-        running: true,
-      });
-    } else {
-      useDesk.setState({ running: true });
-    }
-  } catch {
-    useDesk.setState({ running: true });
-  }
+  // Live mode never restores browser-persisted trading state. Broker state is authoritative.
+  useDesk.setState({ running: true });
+  void useDesk.getState().refreshLiveState();
   if (engineTimer) window.clearInterval(engineTimer);
   engineTimer = window.setInterval(() => useDesk.getState().tick(), 220);
   if (telegramTimer) window.clearInterval(telegramTimer);
