@@ -20,6 +20,8 @@ Numbered tickets, master/follower copy routing, circuit breakers, MAE/MFE journa
 
 This app is a **complete paper desk** you can demo, train on, and extend. Live broker fills require a local MT expert posting to the bridge token and a Telegram user-session worker (out of browser scope).
 
+Starts empty: no seeded trades, no mock journal, no hardcoded chat list. Connect Telegram or inject signals, add accounts on the Accounts page.
+
 ## Run
 
 ```bash
