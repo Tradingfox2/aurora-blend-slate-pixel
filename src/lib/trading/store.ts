@@ -672,12 +672,12 @@ export const useDesk = create<DeskState>((set, get) => {
       try {
         const response = await fetch("/api/bridge/accounts", { cache: "no-store" });
         if (!response.ok) throw new Error(`bridge_accounts_${response.status}`);
-        const data = await response.json() as { accounts?: Account[] };
+        const data = await response.json() as { accounts?: Account[]; positions?: Position[]; orders?: DeskSnapshot["orders"] };
         const accounts = Array.isArray(data.accounts) ? data.accounts : [];
         set({
           accounts: accounts.map((a) => ({ ...a, receivesSignals: false, frozen: false })),
-          positions: [],
-          orders: [],
+          positions: Array.isArray(data.positions) ? data.positions : [],
+          orders: Array.isArray(data.orders) ? data.orders : [],
           history: [],
           signals: [],
           messages: [],
