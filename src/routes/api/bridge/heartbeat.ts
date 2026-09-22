@@ -46,7 +46,7 @@ export const Route = createFileRoute("/api/bridge/heartbeat")({
           [login, platform],
         );
         for (const c of commands as Array<{id:string}>) {
-          await sql.query("update volt_bridge_commands set status='claimed', claimed_at=now() where id=$1 and status='queued'", [c.id]);
+          await sql.query("update volt_bridge_commands set status='claimed',claimed_at=now(),claimed_until=now()+interval '45 seconds',attempts=attempts+1 where id=$1 and status='queued'", [c.id]);
         }
         return Response.json({ ok: true, login, platform, commands: commands.map((c) => ({
           id: c.id, type: c.type, payload: JSON.parse(String(c.payload)),
