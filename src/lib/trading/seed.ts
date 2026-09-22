@@ -1,4 +1,3 @@
-import { SOURCE_SEED } from "./telegram";
 import { seedQuotes } from "./symbols";
 import type {
   Account,
