@@ -42,7 +42,7 @@ export const Route = createFileRoute("/api/bridge/heartbeat")({
           `select id, command_type as "type", payload_json as payload
              from volt_bridge_commands
             where login=$1 and platform=$2 and status='queued'
-            order by created_at asc limit 25`,
+            order by created_at asc limit 1`,
           [login, platform],
         );
         for (const c of commands as Array<{id:string}>) {
