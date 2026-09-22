@@ -19,7 +19,7 @@ import {
 import { formatUsd } from "@/lib/trading/format";
 import { PnlText } from "@/components/trading/bits";
 import { useDesk } from "@/lib/trading/store";
-import type { Account, AccountRole, Platform } from "@/lib/trading/types";
+import type { Account, AccountRole, CopySettings, Platform } from "@/lib/trading/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_desk/accounts")({
@@ -31,22 +31,20 @@ function AccountsPage() {
   const patchAccount = useDesk((s) => s.patchAccount);
   const setAccountFrozen = useDesk((s) => s.setAccountFrozen);
   const setAccountConnected = useDesk((s) => s.setAccountConnected);
+  const beginAccountConnect = useDesk((s) => s.beginAccountConnect);
   const addAccount = useDesk((s) => s.addAccount);
   const removeAccount = useDesk((s) => s.removeAccount);
   const [open, setOpen] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
 
   function toggleConnect(a: Account) {
-    if (busyId) return;
-    setBusyId(a.id);
-    const next = !a.connected;
-    window.setTimeout(() => {
-      setAccountConnected(a.id, next);
-      toast(next ? `${a.name} online` : `${a.name} disconnected`, {
-        description: next ? `${a.platform} · ${a.server}` : "Trading frozen until reconnect",
-      });
-      setBusyId(null);
-    }, next ? 900 : 350);
+    if (a.connecting) return;
+    if (a.connected) {
+      setAccountConnected(a.id, false);
+      toast(`${a.name} disconnected`, { description: "Trading frozen until reconnect" });
+      return;
+    }
+    beginAccountConnect(a.id);
+    toast(`${a.name} handshaking`, { description: `${a.platform} · ${a.server}` });
   }
 
   return (
@@ -57,7 +55,7 @@ function AccountsPage() {
           <h1 className="mt-1 font-display text-2xl font-semibold tracking-[-0.03em]">Accounts</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">
             Masters receive signals. Followers copy fills with lot multiplier, reverse, and equity scaling.
-            Connect / disconnect simulates the local EA bridge handshake.
+            Connect runs the EA handshake (token on Bridge page).
           </p>
         </div>
         <AddAccountDialog open={open} onOpenChange={setOpen} onAdd={addAccount} />
@@ -66,7 +64,6 @@ function AccountsPage() {
       <div className="grid gap-3 md:grid-cols-2">
         {accounts.map((a) => {
           const float = a.equity - a.balance;
-          const connecting = busyId === a.id;
           return (
             <Card key={a.id}>
               <CardHeader>
@@ -84,7 +81,7 @@ function AccountsPage() {
                         a.connected ? "bg-buy pulse-live" : "bg-subtle",
                       )}
                     />
-                    {connecting ? "…" : a.connected ? `${a.pingMs}ms` : "offline"}
+                    {a.connecting ? "handshake" : a.connected ? `${a.pingMs}ms` : "offline"}
                   </Badge>
                   <Badge variant="accent">{a.role}</Badge>
                 </div>
@@ -99,10 +96,10 @@ function AccountsPage() {
                 <Button
                   size="sm"
                   variant={a.connected ? "outline" : "default"}
-                  disabled={connecting}
+                  disabled={a.connecting}
                   onClick={() => toggleConnect(a)}
                 >
-                  {connecting ? "Handshaking…" : a.connected ? "Disconnect" : "Connect"}
+                  {a.connecting ? "Handshaking…" : a.connected ? "Disconnect" : "Connect"}
                 </Button>
                 {a.role !== "master" ? (
                   <Button
@@ -138,14 +135,13 @@ function AccountsPage() {
                   </label>
                 ) : null}
               </div>
+
               {a.copy ? (
-                <div className="mt-4 rounded-md bg-bg-subtle p-3 text-xs text-muted">
-                  Copy of {accounts.find((m) => m.id === a.copy?.masterId)?.name ?? a.copy.masterId} · ×
-                  {a.copy.multiplier}
-                  {a.copy.reverse ? " · reverse" : ""} {a.copy.equityScale ? " · equity scale" : ""} · max{" "}
-                  {a.copy.maxLot} lots
-                  {a.copy.delayMs ? ` · ${a.copy.delayMs}ms delay` : ""}
-                </div>
+                <CopyEditor
+                  account={a}
+                  masters={accounts.filter((m) => m.role === "master" || m.id !== a.id)}
+                  onChange={(copy) => patchAccount(a.id, { copy })}
+                />
               ) : null}
               <RiskEditor account={a} onChange={(risk) => patchAccount(a.id, { risk })} />
             </Card>
@@ -161,6 +157,90 @@ function Metric({ k, v }: { k: string; v: ReactNode }) {
     <div>
       <p className="text-[10px] uppercase tracking-wide text-subtle">{k}</p>
       <div className="mt-0.5 font-mono text-sm tabular">{v}</div>
+    </div>
+  );
+}
+
+function CopyEditor({
+  account,
+  masters,
+  onChange,
+}: {
+  account: Account;
+  masters: Account[];
+  onChange: (c: CopySettings) => void;
+}) {
+  const c = account.copy!;
+  return (
+    <div className="mt-4 rounded-md bg-bg-subtle p-3">
+      <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-subtle">Copy settings</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <label className="space-y-1 text-xs text-muted">
+          Master
+          <select
+            className="h-9 w-full rounded-sm bg-bg px-2 text-fg shadow-[var(--shadow-border)]"
+            value={c.masterId}
+            onChange={(e) => onChange({ ...c, masterId: e.target.value })}
+          >
+            {masters.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1 text-xs text-muted">
+          Multiplier
+          <Input
+            className="h-9"
+            type="number"
+            step="0.1"
+            value={c.multiplier}
+            onChange={(e) => onChange({ ...c, multiplier: Number(e.target.value) })}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-muted">
+          Max lot
+          <Input
+            className="h-9"
+            type="number"
+            step="0.01"
+            value={c.maxLot}
+            onChange={(e) => onChange({ ...c, maxLot: Number(e.target.value) })}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-muted">
+          Delay ms
+          <Input
+            className="h-9"
+            type="number"
+            step="50"
+            value={c.delayMs}
+            onChange={(e) => onChange({ ...c, delayMs: Number(e.target.value) })}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-muted">
+          Symbol suffix
+          <Input
+            className="h-9"
+            value={c.symbolSuffix}
+            onChange={(e) => onChange({ ...c, symbolSuffix: e.target.value })}
+          />
+        </label>
+        <div className="flex flex-col justify-end gap-2 pb-1">
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <Switch checked={c.reverse} onCheckedChange={(reverse) => onChange({ ...c, reverse })} />
+            Reverse
+          </label>
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <Switch
+              checked={c.equityScale}
+              onCheckedChange={(equityScale) => onChange({ ...c, equityScale })}
+            />
+            Equity scale
+          </label>
+        </div>
+      </div>
     </div>
   );
 }
@@ -231,7 +311,7 @@ function AddAccountDialog({
         <DialogHeader>
           <DialogTitle>Attach terminal</DialogTitle>
           <DialogDescription>
-            Paper credentials only. Live bridges attach to the local MT4/MT5 expert.
+            Paper credentials only. Live bridges attach to the local MT4/MT5 expert (`ea/VoltBridge.mq5`).
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -289,9 +369,10 @@ function AddAccountDialog({
               balance: bal,
               equity: bal,
               margin: 0,
-              connected: true,
-              pingMs: 16,
-              frozen: false,
+              connected: false,
+              connecting: false,
+              pingMs: 0,
+              frozen: true,
               receivesSignals: role !== "follower",
               risk: accounts[0]!.risk,
               copy:
@@ -309,7 +390,7 @@ function AddAccountDialog({
             };
             onAdd(base);
             onOpenChange(false);
-            toast(`${name} attached`);
+            toast(`${name} attached — Connect to handshake`);
           }}
         >
           Attach
