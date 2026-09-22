@@ -12,12 +12,12 @@ export const Route = createFileRoute("/_desk/book")({
   component: BookPage,
 });
 
-const BULK: { mode: BulkMode; label: string; danger?: boolean }[] = [
-  { mode: "close_all", label: "Close all", danger: true },
+const BULK: { mode: BulkMode; label: string; danger?: boolean; confirm?: string }[] = [
+  { mode: "close_all", label: "Close all", danger: true, confirm: "Close every open position on all terminals?" },
   { mode: "close_winners", label: "Close winners" },
   { mode: "close_losers", label: "Close losers" },
   { mode: "be_all", label: "BE all" },
-  { mode: "flatten", label: "Flatten", danger: true },
+  { mode: "flatten", label: "Flatten", danger: true, confirm: "Flatten positions and cancel all pendings?" },
   { mode: "cancel_all", label: "Cancel pendings" },
 ];
 
@@ -28,7 +28,8 @@ function BookPage() {
   const bulk = useDesk((s) => s.bulk);
   const cancelOrder = useDesk((s) => s.cancelOrder);
 
-  function runBulk(mode: BulkMode, label: string) {
+  function runBulk(mode: BulkMode, label: string, confirm?: string) {
+    if (confirm && !window.confirm(confirm)) return;
     const before = useDesk.getState().positions.length;
     bulk(mode);
     const after = useDesk.getState().positions.length;
@@ -48,13 +49,9 @@ function BookPage() {
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-subtle">Execution</p>
           <h1 className="mt-1 font-display text-2xl font-semibold tracking-[-0.03em]">Positions</h1>
-          <p className="mt-1 text-sm text-muted">
-            Live tickets, pendings, and bulk actions across every terminal.
-          </p>
+          <p className="mt-1 text-sm text-muted">Live tickets, pendings, and bulk actions across every terminal.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <ManualOrderButton />
-        </div>
+        <ManualOrderButton />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -62,9 +59,9 @@ function BookPage() {
           <Button
             key={b.mode}
             size="sm"
-            variant={b.danger ? "outline" : "outline"}
+            variant="outline"
             className={b.danger ? "border-sell/40 text-sell hover:bg-sell/10" : undefined}
-            onClick={() => runBulk(b.mode, b.label)}
+            onClick={() => runBulk(b.mode, b.label, b.confirm)}
           >
             {b.label}
           </Button>
