@@ -75,8 +75,10 @@ export interface DeskState extends DeskSnapshot {
   tick: () => void;
   setHalt: (halt: boolean) => void;
   setAccountFrozen: (id: string, frozen: boolean) => void;
+  setAccountConnected: (id: string, connected: boolean) => void;
   patchAccount: (id: string, patch: Partial<Account>) => void;
   addAccount: (account: Account) => void;
+  removeAccount: (id: string) => void;
   patchSource: (id: string, patch: Partial<TelegramSource>) => void;
   patchSettings: (patch: Partial<DeskState["settings"]>) => void;
   bulk: (mode: BulkMode) => void;
@@ -315,6 +317,42 @@ export const useDesk = create<DeskState>((set, get) => {
       }));
     },
 
+    setAccountConnected: (id, connected) => {
+      set((s) => {
+        const accounts = s.accounts.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                connected,
+                pingMs: connected ? 8 + Math.floor(Math.random() * 22) : 0,
+                frozen: connected ? a.frozen : true,
+              }
+            : a,
+        );
+        const name = accounts.find((a) => a.id === id)?.name ?? id;
+        return {
+          accounts,
+          log: [
+            {
+              id: `ev_acc_${Date.now()}`,
+              at: Date.now(),
+              kind: "circuit" as const,
+              text: connected ? `Terminal online · ${name}` : `Terminal offline · ${name}`,
+            },
+            ...s.log,
+          ].slice(0, 160),
+          lastEvents: [
+            {
+              id: `ev_acc_${Date.now()}`,
+              at: Date.now(),
+              kind: "circuit" as const,
+              text: connected ? `Terminal online · ${name}` : `Terminal offline · ${name}`,
+            },
+          ],
+        };
+      });
+    },
+
     patchAccount: (id, patch) => {
       set((s) => ({
         accounts: s.accounts.map((a) => (a.id === id ? { ...a, ...patch } : a)),
@@ -323,6 +361,14 @@ export const useDesk = create<DeskState>((set, get) => {
 
     addAccount: (account) => {
       set((s) => ({ accounts: [...s.accounts, account] }));
+    },
+
+    removeAccount: (id) => {
+      set((s) => ({
+        accounts: s.accounts.filter((a) => a.id !== id),
+        positions: s.positions.filter((p) => p.accountId !== id),
+        orders: s.orders.filter((o) => o.accountId !== id),
+      }));
     },
 
     patchSource: (id, patch) => {
@@ -340,8 +386,6 @@ export const useDesk = create<DeskState>((set, get) => {
       const pnlOf = (p: Position) => {
         const q = s.quotes[p.symbol];
         const px = p.side === "buy" ? q.bid : q.ask;
-        const spec = p.symbol;
-        void spec;
         const dir = p.side === "buy" ? 1 : -1;
         return (px - p.openPrice) * dir;
       };
