@@ -562,21 +562,37 @@ export const useDesk = create<DeskState>((set, get) => {
 
     closePosition: (id) => {
       const s = get();
+      if (!s.settings.paper) {
+        set({ log: [{ id: `ev_live_block_${Date.now()}`, at: Date.now(), kind: "reject", text: "Live manual close requires broker command + acknowledgement" }, ...s.log].slice(0, 160) });
+        return;
+      }
       set(mergeApply(s, bulkClose({ ...s, now: Date.now() }, (p) => p.id === id, "manual close")));
     },
 
     modify: (id, patch) => {
       const s = get();
+      if (!s.settings.paper) {
+        set({ log: [{ id: `ev_live_block_${Date.now()}`, at: Date.now(), kind: "reject", text: "Live modify requires broker command + acknowledgement" }, ...s.log].slice(0, 160) });
+        return;
+      }
       set(mergeApply(s, modifyPosition(s, id, patch)));
     },
 
     cancelOrder: (id) => {
       const s = get();
+      if (!s.settings.paper) {
+        set({ log: [{ id: `ev_live_block_${Date.now()}`, at: Date.now(), kind: "reject", text: "Live cancel requires broker command + acknowledgement" }, ...s.log].slice(0, 160) });
+        return;
+      }
       set(mergeApply(s, cancelOrders(s, (o) => o.id === id)));
     },
 
     placeManual: (args) => {
       const s = get();
+      if (!s.settings.paper) {
+        set({ log: [{ id: `ev_live_block_${Date.now()}`, at: Date.now(), kind: "reject", text: "Live manual order requires broker command + acknowledgement" }, ...s.log].slice(0, 160) });
+        return;
+      }
       set(mergeApply(s, manualMarket({ ...s, now: Date.now() }, args)));
     },
 
@@ -585,23 +601,24 @@ export const useDesk = create<DeskState>((set, get) => {
     },
 
     connectTelegram: (user, phone) => {
-      set({
+      set((s) => ({
         telegram: {
-          connected: true,
+          ...s.telegram,
+          connected: false,
           connecting: false,
-          user,
-          phone,
+          user: null,
+          phone: null,
           lastIngestAt: null,
         },
         lastEvents: [
           {
-            id: `ev_tg_${Date.now()}`,
+            id: `ev_tg_block_${Date.now()}`,
             at: Date.now(),
-            kind: "telegram",
-            text: `Telegram session · @${user}`,
+            kind: "reject",
+            text: "Telegram connection must be established by the MTProto worker",
           },
         ],
-      });
+      }));
     },
 
     disconnectTelegram: () => {
