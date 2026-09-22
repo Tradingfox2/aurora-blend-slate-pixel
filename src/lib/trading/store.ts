@@ -8,6 +8,7 @@ import {
   manualMarket,
   matchPendings,
   modifyPosition,
+  positionPnl,
   refreshAccounts,
   tickQuotes,
   type ApplyResult,
@@ -17,6 +18,7 @@ import { createSeed } from "./seed";
 import { generateMessage } from "./telegram";
 import type {
   Account,
+  BridgeState,
   DeskSnapshot,
   ExecEvent,
   ParsedSignal,
@@ -26,15 +28,24 @@ import type {
   TelegramSource,
 } from "./types";
 
-const LS_KEY = "volt-desk-v1";
+const LS_KEY = "volt-desk-v2";
 
 function mergeApply(s: DeskState, r: ApplyResult, extra?: Partial<DeskState>): Partial<DeskState> {
   return {
-    positions: r.positions,
+    positions: r.positions.map((p) => ({
+      ...p,
+      mfe: p.mfe ?? 0,
+      mae: p.mae ?? 0,
+    })),
     orders: r.orders,
     signals: r.signals,
     accounts: r.accounts,
-    history: r.history,
+    history: r.history.map((h) => ({
+      ...h,
+      mfe: h.mfe ?? Math.max(0, h.profit),
+      mae: h.mae ?? Math.max(0, -h.profit),
+      durationMs: h.durationMs ?? Math.max(0, h.closeTime - h.openTime),
+    })),
     circuits: r.circuits,
     nextTicket: r.nextTicket,
     log: [...r.events, ...s.log].slice(0, 160),
@@ -56,6 +67,7 @@ function persistPartial(s: DeskState) {
       circuits: s.circuits,
       telegram: s.telegram,
       settings: s.settings,
+      bridge: s.bridge,
       nextSignalNumber: s.nextSignalNumber,
       nextTicket: s.nextTicket,
     };
@@ -76,11 +88,14 @@ export interface DeskState extends DeskSnapshot {
   setHalt: (halt: boolean) => void;
   setAccountFrozen: (id: string, frozen: boolean) => void;
   setAccountConnected: (id: string, connected: boolean) => void;
+  beginAccountConnect: (id: string) => void;
   patchAccount: (id: string, patch: Partial<Account>) => void;
   addAccount: (account: Account) => void;
   removeAccount: (id: string) => void;
   patchSource: (id: string, patch: Partial<TelegramSource>) => void;
   patchSettings: (patch: Partial<DeskState["settings"]>) => void;
+  patchBridge: (patch: Partial<BridgeState>) => void;
+  pulseBridge: () => void;
   bulk: (mode: BulkMode) => void;
   closePosition: (id: string) => void;
   modify: (id: string, patch: Partial<Pick<Position, "sl" | "tp" | "trailingPips">>) => void;
@@ -94,6 +109,7 @@ export interface DeskState extends DeskSnapshot {
     tp?: number;
   }) => void;
   connectTelegram: (user: string, phone: string) => void;
+  beginTelegramConnect: () => void;
   disconnectTelegram: () => void;
   resetDesk: () => void;
   consumeEvents: () => void;
@@ -111,16 +127,47 @@ let engineTimer: number | null = null;
 let telegramTimer: number | null = null;
 let persistTimer: number | null = null;
 let equityTimer: number | null = null;
+let bridgeTimer: number | null = null;
+
+const DEFAULT_BRIDGE: BridgeState = {
+  token: "volt_live_demo",
+  enabled: true,
+  lastPollAt: null,
+  heartbeats: 0,
+  eaVersion: "1.4.2",
+};
 
 export const useDesk = create<DeskState>((set, get) => {
   const seed = createSeed(Date.now());
+  const bridge = (seed as DeskSnapshot).bridge ?? DEFAULT_BRIDGE;
+  const telegram = {
+    ...seed.telegram,
+    lastIngestAt: seed.telegram.lastIngestAt ?? null,
+  };
   return {
     ...seed,
+    bridge,
+    telegram,
+    accounts: seed.accounts.map((a) => ({
+      ...a,
+      connecting: a.connecting ?? false,
+      mfe: undefined,
+      eaVersion: a.eaVersion ?? bridge.eaVersion,
+      lastHeartbeat: a.connected ? Date.now() : undefined,
+    })),
+    positions: seed.positions.map((p) => ({ ...p, mfe: p.mfe ?? 0, mae: p.mae ?? 0 })),
+    history: seed.history.map((h) => ({
+      ...h,
+      mfe: h.mfe ?? Math.max(12, Math.abs(h.profit) * (0.8 + Math.random())),
+      mae: h.mae ?? Math.max(8, Math.abs(h.profit) * (0.4 + Math.random() * 0.6)),
+      durationMs: h.durationMs ?? Math.max(60_000, h.closeTime - h.openTime),
+    })),
     running: false,
     lastEvents: [],
 
     ingestMessage: (sourceId, text, from, auto) => {
       const s = get();
+      if (!s.telegram.connected) return null;
       const source = s.sources.find((x) => x.id === sourceId);
       if (!source) return null;
       const t0 = performance.now();
@@ -163,6 +210,7 @@ export const useDesk = create<DeskState>((set, get) => {
         messages: [msg, ...s.messages].slice(0, 80),
         signals: [signal, ...s.signals].slice(0, 80),
         nextSignalNumber: number + 1,
+        telegram: { ...s.telegram, lastIngestAt: Date.now() },
         log: [
           {
             id: `ev_${Date.now()}`,
@@ -276,12 +324,22 @@ export const useDesk = create<DeskState>((set, get) => {
       next = { ...next, ...matched, log: [...matched.events, ...next.log].slice(0, 160) };
       const managed = manageOpenPositions(next);
       next = { ...next, ...managed, log: [...managed.events, ...next.log].slice(0, 160) };
-      const accounts = refreshAccounts(next.accounts, next.positions, quotes);
+      const positions = next.positions.map((p) => {
+        const pnl = positionPnl(p, quotes);
+        const mfe = Math.max(p.mfe ?? 0, pnl);
+        const mae = Math.max(p.mae ?? 0, -pnl);
+        return { ...p, mfe, mae };
+      });
+      const accounts = refreshAccounts(next.accounts, positions, quotes).map((a) =>
+        a.connected && !a.connecting
+          ? { ...a, lastHeartbeat: now, pingMs: Math.max(4, Math.round(a.pingMs + (Math.random() - 0.5) * 2)) }
+          : a,
+      );
       const events = [...matched.events, ...managed.events];
       set({
         quotes,
         now,
-        positions: next.positions,
+        positions,
         orders: next.orders,
         signals: next.signals,
         accounts,
@@ -324,33 +382,36 @@ export const useDesk = create<DeskState>((set, get) => {
             ? {
                 ...a,
                 connected,
+                connecting: false,
                 pingMs: connected ? 8 + Math.floor(Math.random() * 22) : 0,
-                frozen: connected ? a.frozen : true,
+                frozen: connected ? false : true,
+                lastHeartbeat: connected ? Date.now() : a.lastHeartbeat,
+                eaVersion: a.eaVersion ?? s.bridge.eaVersion,
               }
             : a,
         );
         const name = accounts.find((a) => a.id === id)?.name ?? id;
+        const ev: ExecEvent = {
+          id: `ev_acc_${Date.now()}`,
+          at: Date.now(),
+          kind: "bridge",
+          text: connected ? `EA online · ${name}` : `EA offline · ${name}`,
+        };
         return {
           accounts,
-          log: [
-            {
-              id: `ev_acc_${Date.now()}`,
-              at: Date.now(),
-              kind: "circuit" as const,
-              text: connected ? `Terminal online · ${name}` : `Terminal offline · ${name}`,
-            },
-            ...s.log,
-          ].slice(0, 160),
-          lastEvents: [
-            {
-              id: `ev_acc_${Date.now()}`,
-              at: Date.now(),
-              kind: "circuit" as const,
-              text: connected ? `Terminal online · ${name}` : `Terminal offline · ${name}`,
-            },
-          ],
+          log: [ev, ...s.log].slice(0, 160),
+          lastEvents: [ev],
         };
       });
+    },
+
+    beginAccountConnect: (id) => {
+      set((s) => ({
+        accounts: s.accounts.map((a) => (a.id === id ? { ...a, connecting: true } : a)),
+      }));
+      window.setTimeout(() => {
+        get().setAccountConnected(id, true);
+      }, 1100);
     },
 
     patchAccount: (id, patch) => {
@@ -360,7 +421,7 @@ export const useDesk = create<DeskState>((set, get) => {
     },
 
     addAccount: (account) => {
-      set((s) => ({ accounts: [...s.accounts, account] }));
+      set((s) => ({ accounts: [...s.accounts, { ...account, connecting: false }] }));
     },
 
     removeAccount: (id) => {
@@ -379,6 +440,40 @@ export const useDesk = create<DeskState>((set, get) => {
 
     patchSettings: (patch) => {
       set((s) => ({ settings: { ...s.settings, ...patch } }));
+    },
+
+    patchBridge: (patch) => {
+      set((s) => ({ bridge: { ...s.bridge, ...patch } }));
+    },
+
+    pulseBridge: () => {
+      const now = Date.now();
+      set((s) => ({
+        bridge: {
+          ...s.bridge,
+          lastPollAt: now,
+          heartbeats: s.bridge.heartbeats + 1,
+        },
+        accounts: s.accounts.map((a) =>
+          a.connected
+            ? {
+                ...a,
+                lastHeartbeat: now,
+                pingMs: 6 + Math.floor(Math.random() * 18),
+                eaVersion: s.bridge.eaVersion,
+              }
+            : a,
+        ),
+        log: [
+          {
+            id: `ev_br_${now}`,
+            at: now,
+            kind: "bridge" as const,
+            text: `EA heartbeat · ${s.bridge.eaVersion}`,
+          },
+          ...s.log,
+        ].slice(0, 160),
+      }));
     },
 
     bulk: (mode) => {
@@ -401,6 +496,9 @@ export const useDesk = create<DeskState>((set, get) => {
             { id: `ev_be_${Date.now()}`, at: Date.now(), kind: "modify" as const, text: "Break-even all" },
             ...s.log,
           ].slice(0, 160),
+          lastEvents: [
+            { id: `ev_be_${Date.now()}`, at: Date.now(), kind: "modify" as const, text: "Break-even all" },
+          ],
         });
         return;
       }
@@ -438,23 +536,63 @@ export const useDesk = create<DeskState>((set, get) => {
       set(mergeApply(s, manualMarket({ ...s, now: Date.now() }, args)));
     },
 
+    beginTelegramConnect: () => {
+      set((s) => ({ telegram: { ...s.telegram, connecting: true } }));
+    },
+
     connectTelegram: (user, phone) => {
       set({
-        telegram: { connected: true, connecting: false, user, phone },
+        telegram: {
+          connected: true,
+          connecting: false,
+          user,
+          phone,
+          lastIngestAt: null,
+        },
+        lastEvents: [
+          {
+            id: `ev_tg_${Date.now()}`,
+            at: Date.now(),
+            kind: "telegram",
+            text: `Telegram session · @${user}`,
+          },
+        ],
       });
     },
 
     disconnectTelegram: () => {
-      set({
-        telegram: { connected: false, connecting: false, user: null, phone: null },
-      });
+      set((s) => ({
+        telegram: {
+          connected: false,
+          connecting: false,
+          user: null,
+          phone: null,
+          lastIngestAt: s.telegram.lastIngestAt,
+        },
+        sources: s.sources.map((src) => ({ ...src, listening: false, autoTrade: false })),
+        lastEvents: [
+          {
+            id: `ev_tg_off_${Date.now()}`,
+            at: Date.now(),
+            kind: "telegram",
+            text: "Telegram session closed · feed stopped",
+          },
+        ],
+      }));
     },
 
     resetDesk: () => {
       const fresh = createSeed(Date.now());
-      set({ ...fresh, running: true, lastEvents: [] });
+      set({
+        ...fresh,
+        bridge: (fresh as DeskSnapshot).bridge ?? DEFAULT_BRIDGE,
+        telegram: { ...fresh.telegram, lastIngestAt: null },
+        running: true,
+        lastEvents: [],
+      });
       try {
         localStorage.removeItem(LS_KEY);
+        localStorage.removeItem("volt-desk-v1");
       } catch {
         /* ignore */
       }
@@ -466,7 +604,7 @@ export const useDesk = create<DeskState>((set, get) => {
 
 function pumpTelegram() {
   const s = useDesk.getState();
-  if (!s.telegram.connected || s.circuits.globalHalt) return;
+  if (!s.telegram.connected || s.telegram.connecting || s.circuits.globalHalt) return;
   const listening = s.sources.filter((x) => x.listening);
   if (!listening.length) return;
   const source = listening[Math.floor(Math.random() * listening.length)]!;
@@ -479,12 +617,21 @@ export function startDesk() {
   const st = useDesk.getState();
   if (st.running) return;
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(LS_KEY) ?? localStorage.getItem("volt-desk-v1");
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<DeskSnapshot>;
       useDesk.setState({
         ...st,
         ...parsed,
+        bridge: { ...DEFAULT_BRIDGE, ...parsed.bridge },
+        telegram: {
+          connected: false,
+          connecting: false,
+          user: null,
+          phone: null,
+          lastIngestAt: null,
+          ...parsed.telegram,
+        },
         quotes: st.quotes,
         now: Date.now(),
         running: true,
@@ -509,6 +656,13 @@ export function startDesk() {
       equity: [...s.equity, { t: Date.now(), equity }].slice(-80),
     });
   }, 5000);
+  if (bridgeTimer) window.clearInterval(bridgeTimer);
+  bridgeTimer = window.setInterval(() => {
+    const s = useDesk.getState();
+    if (s.bridge.enabled && s.accounts.some((a) => a.connected)) {
+      useDesk.getState().pulseBridge();
+    }
+  }, 18000);
 }
 
 export function stopDesk() {
@@ -516,6 +670,7 @@ export function stopDesk() {
   if (telegramTimer) window.clearInterval(telegramTimer);
   if (persistTimer) window.clearInterval(persistTimer);
   if (equityTimer) window.clearInterval(equityTimer);
-  engineTimer = telegramTimer = persistTimer = equityTimer = null;
+  if (bridgeTimer) window.clearInterval(bridgeTimer);
+  engineTimer = telegramTimer = persistTimer = equityTimer = bridgeTimer = null;
   useDesk.setState({ running: false });
 }
