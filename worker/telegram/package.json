@@ -1,0 +1,10 @@
+{
+  "name": "volt-telegram-worker",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node index.mjs" },
+  "dependencies": {
+    "pg": "^8.16.3",
+    "telegram": "^2.26.22"
+  }
+}
