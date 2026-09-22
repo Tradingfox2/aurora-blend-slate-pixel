@@ -1,8 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { env } from "@/lib/env.server";
+
+function authorized(request: Request) {
+  const configured = env("BRIDGE_TOKEN");
+  const auth = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  return Boolean(configured && auth === configured);
+}
+
 export const Route = createFileRoute("/api/bridge/accounts")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        if (!authorized(request)) {
+          return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+        }
+
         const { getSql } = await import("@/lib/db");
         const sql = await getSql();
         const rows = await sql.query(
