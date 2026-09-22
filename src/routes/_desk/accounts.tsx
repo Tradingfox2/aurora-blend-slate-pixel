@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import { formatUsd } from "@/lib/trading/format";
 import { PnlText } from "@/components/trading/bits";
 import { useDesk } from "@/lib/trading/store";
 import type { Account, AccountRole, Platform } from "@/lib/trading/types";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_desk/accounts")({
   component: AccountsPage,
@@ -28,17 +30,34 @@ function AccountsPage() {
   const accounts = useDesk((s) => s.accounts);
   const patchAccount = useDesk((s) => s.patchAccount);
   const setAccountFrozen = useDesk((s) => s.setAccountFrozen);
+  const setAccountConnected = useDesk((s) => s.setAccountConnected);
   const addAccount = useDesk((s) => s.addAccount);
+  const removeAccount = useDesk((s) => s.removeAccount);
   const [open, setOpen] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  function toggleConnect(a: Account) {
+    if (busyId) return;
+    setBusyId(a.id);
+    const next = !a.connected;
+    window.setTimeout(() => {
+      setAccountConnected(a.id, next);
+      toast(next ? `${a.name} online` : `${a.name} disconnected`, {
+        description: next ? `${a.platform} · ${a.server}` : "Trading frozen until reconnect",
+      });
+      setBusyId(null);
+    }, next ? 900 : 350);
+  }
 
   return (
-    <div className="mx-auto flex max-w-[1400px] flex-col gap-4 p-4 md:p-6">
+    <div className="page-enter mx-auto flex max-w-[1400px] flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-subtle">Routing</p>
           <h1 className="mt-1 font-display text-2xl font-semibold tracking-[-0.03em]">Accounts</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            Masters receive signals. Followers copy fills with lot multiplier, reverse, and equity scaling. Independents trade the same tape on their own risk.
+            Masters receive signals. Followers copy fills with lot multiplier, reverse, and equity scaling.
+            Connect / disconnect simulates the local EA bridge handshake.
           </p>
         </div>
         <AddAccountDialog open={open} onOpenChange={setOpen} onAdd={addAccount} />
@@ -47,6 +66,7 @@ function AccountsPage() {
       <div className="grid gap-3 md:grid-cols-2">
         {accounts.map((a) => {
           const float = a.equity - a.balance;
+          const connecting = busyId === a.id;
           return (
             <Card key={a.id}>
               <CardHeader>
@@ -57,7 +77,15 @@ function AccountsPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={a.connected ? "live" : "outline"}>{a.connected ? `${a.pingMs}ms` : "offline"}</Badge>
+                  <Badge variant={a.connected ? "live" : "outline"} className="gap-1.5">
+                    <span
+                      className={cn(
+                        "inline-block size-1.5 rounded-full",
+                        a.connected ? "bg-buy pulse-live" : "bg-subtle",
+                      )}
+                    />
+                    {connecting ? "…" : a.connected ? `${a.pingMs}ms` : "offline"}
+                  </Badge>
                   <Badge variant="accent">{a.role}</Badge>
                 </div>
               </CardHeader>
@@ -66,9 +94,38 @@ function AccountsPage() {
                 <Metric k="Equity" v={formatUsd(a.equity)} />
                 <Metric k="Float" v={<PnlText value={float} />} />
               </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={a.connected ? "outline" : "default"}
+                  disabled={connecting}
+                  onClick={() => toggleConnect(a)}
+                >
+                  {connecting ? "Handshaking…" : a.connected ? "Disconnect" : "Connect"}
+                </Button>
+                {a.role !== "master" ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-muted hover:text-sell"
+                    onClick={() => {
+                      removeAccount(a.id);
+                      toast(`Removed ${a.name}`);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+
               <div className="mt-4 flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2 text-xs text-muted">
-                  <Switch checked={!a.frozen} onCheckedChange={(v) => setAccountFrozen(a.id, !v)} />
+                  <Switch
+                    checked={!a.frozen && a.connected}
+                    disabled={!a.connected}
+                    onCheckedChange={(v) => setAccountFrozen(a.id, !v)}
+                  />
                   Trading
                 </label>
                 {a.role !== "follower" ? (
@@ -83,8 +140,10 @@ function AccountsPage() {
               </div>
               {a.copy ? (
                 <div className="mt-4 rounded-md bg-bg-subtle p-3 text-xs text-muted">
-                  Copy of {accounts.find((m) => m.id === a.copy?.masterId)?.name ?? a.copy.masterId} · ×{a.copy.multiplier}
-                  {a.copy.reverse ? " · reverse" : ""} {a.copy.equityScale ? " · equity scale" : ""} · max {a.copy.maxLot} lots
+                  Copy of {accounts.find((m) => m.id === a.copy?.masterId)?.name ?? a.copy.masterId} · ×
+                  {a.copy.multiplier}
+                  {a.copy.reverse ? " · reverse" : ""} {a.copy.equityScale ? " · equity scale" : ""} · max{" "}
+                  {a.copy.maxLot} lots
                   {a.copy.delayMs ? ` · ${a.copy.delayMs}ms delay` : ""}
                 </div>
               ) : null}
@@ -171,14 +230,22 @@ function AddAccountDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Attach terminal</DialogTitle>
-          <DialogDescription>Paper credentials only. Live bridges attach to the local MT4/MT5 expert.</DialogDescription>
+          <DialogDescription>
+            Paper credentials only. Live bridges attach to the local MT4/MT5 expert.
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
-          <Field label="Broker"><Input value={broker} onChange={(e) => setBroker(e.target.value)} /></Field>
+          <Field label="Name">
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label="Broker">
+            <Input value={broker} onChange={(e) => setBroker(e.target.value)} />
+          </Field>
           <Field label="Platform">
             <Select value={platform} onValueChange={(v) => setPlatform(v as Platform)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="MT4">MT4</SelectItem>
                 <SelectItem value="MT5">MT5</SelectItem>
@@ -187,7 +254,9 @@ function AddAccountDialog({
           </Field>
           <Field label="Role">
             <Select value={role} onValueChange={(v) => setRole(v as AccountRole)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="independent">Independent</SelectItem>
                 <SelectItem value="master">Master</SelectItem>
@@ -195,8 +264,12 @@ function AddAccountDialog({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Login"><Input value={login} onChange={(e) => setLogin(e.target.value)} /></Field>
-          <Field label="Balance"><Input value={balance} onChange={(e) => setBalance(e.target.value)} /></Field>
+          <Field label="Login">
+            <Input value={login} onChange={(e) => setLogin(e.target.value)} />
+          </Field>
+          <Field label="Balance">
+            <Input value={balance} onChange={(e) => setBalance(e.target.value)} />
+          </Field>
         </div>
         <Button
           className="mt-2 w-full"
@@ -236,6 +309,7 @@ function AddAccountDialog({
             };
             onAdd(base);
             onOpenChange(false);
+            toast(`${name} attached`);
           }}
         >
           Attach
