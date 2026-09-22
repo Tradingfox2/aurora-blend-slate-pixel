@@ -407,33 +407,17 @@ export const useDesk = create<DeskState>((set, get) => {
     },
 
     setAccountConnected: (id, connected) => {
-      set((s) => {
-        const accounts = s.accounts.map((a) =>
-          a.id === id
-            ? {
-                ...a,
-                connected,
-                connecting: false,
-                pingMs: connected ? 8 + Math.floor(Math.random() * 22) : 0,
-                frozen: connected ? false : true,
-                lastHeartbeat: connected ? Date.now() : a.lastHeartbeat,
-                eaVersion: a.eaVersion ?? s.bridge?.eaVersion ?? "1.4.2",
-              }
-            : a,
-        );
-        const name = accounts.find((a) => a.id === id)?.name ?? id;
-        const ev: ExecEvent = {
-          id: `ev_acc_${Date.now()}`,
-          at: Date.now(),
-          kind: "bridge",
-          text: connected ? `EA online · ${name}` : `EA offline · ${name}`,
-        };
-        return {
-          accounts,
-          log: [ev, ...s.log].slice(0, 160),
-          lastEvents: [ev],
-        };
-      });
+      // UI code must not be able to assert an external broker connection.
+      // Only an authenticated EA heartbeat can establish connected=true.
+      set((s) => ({
+        accounts: s.accounts.map((a) => a.id === id ? {
+          ...a,
+          connected: connected ? false : false,
+          connecting: false,
+          frozen: true,
+          lastHeartbeat: connected ? a.lastHeartbeat : undefined,
+        } : a),
+      }));
     },
 
     beginAccountConnect: (id) => {
