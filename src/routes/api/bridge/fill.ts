@@ -18,7 +18,7 @@ export const Route=createFileRoute("/api/bridge/fill")({server:{handlers:{
       [id,login,platform,Number(body.ticket),String(body.event),String(body.symbol),String(body.side),Number(body.lots||0),body.price==null?null:Number(body.price),body.profit==null?null:Number(body.profit),JSON.stringify(body)]);
     const ev=String(body.event);
     const terminal=["failed","rejected","cancelled"].includes(ev);
-    await sql.query(`update volt_bridge_commands set status=$2,completed_at=now(),claimed_until=null,result_json=$3,last_error=$4 where id=$1`,
+    await sql.query(`update volt_bridge_commands set status=$2,completed_at=now(),result_json=$3,last_error=$4 where id=$1`,
       [commandId,terminal?"failed":"completed",JSON.stringify(body),terminal?String(body.error||ev):null]);
     return Response.json({ok:true,id,receivedAt:Date.now(),duplicate:false});
   }
