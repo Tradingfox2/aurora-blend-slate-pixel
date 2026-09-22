@@ -1,5 +1,5 @@
 {
   "title": "VOLT",
   "card": "custom",
-  "description": "Telegram signals to MetaTrader execution."
+  "description": "Telegram signals to MT4/MT5. Numbered tickets, copy routing, circuits, journal."
 }

@@ -19,7 +19,6 @@ export const Route = createFileRoute("/_desk/")({
 function DeskPage() {
   const accounts = useDesk((s) => s.accounts);
   const positions = useDesk((s) => s.positions);
-  const quotes = useDesk((s) => s.quotes);
   const signals = useDesk((s) => s.signals);
   const history = useDesk((s) => s.history);
   const circuits = useDesk((s) => s.circuits);
@@ -27,6 +26,8 @@ function DeskPage() {
   const log = useDesk((s) => s.log);
   const now = useDesk((s) => s.now);
   const executeSignal = useDesk((s) => s.executeSignal);
+  const telegram = useDesk((s) => s.telegram);
+  const bridge = useDesk((s) => s.bridge);
 
   const equity = accounts.reduce((s, a) => s + a.equity, 0);
   const balance = accounts.reduce((s, a) => s + a.balance, 0);
@@ -34,9 +35,10 @@ function DeskPage() {
   const hist = totals(history);
   const lastFill = log.find((e) => e.kind === "fill");
   const liveSignals = signals.filter((s) => s.status !== "ignored").slice(0, 6);
+  const online = accounts.filter((a) => a.connected).length;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 overflow-x-hidden p-4 md:p-6">
+    <div className="page-enter mx-auto flex w-full max-w-[1400px] flex-col gap-4 overflow-x-hidden p-4 md:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-subtle">Command</p>
@@ -53,10 +55,29 @@ function DeskPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-2 text-xs text-muted">
+        <Badge variant={telegram.connected ? "live" : "outline"}>
+          TG {telegram.connected ? "session" : "offline"}
+        </Badge>
+        <Badge variant={online > 0 ? "live" : "outline"}>
+          {online}/{accounts.length} EA
+        </Badge>
+        <Badge variant={bridge?.enabled ? "accent" : "outline"}>
+          Bridge {bridge?.enabled ? "armed" : "idle"}
+        </Badge>
+        <Badge variant={circuits.globalHalt ? "sell" : "outline"}>
+          {circuits.globalHalt ? "halted" : "trading armed"}
+        </Badge>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Combined equity" value={formatUsd(equity)} hint={`${accounts.filter((a) => a.connected).length} terminals`} />
+        <Kpi label="Combined equity" value={formatUsd(equity)} hint={`${online} terminals online`} />
         <Kpi label="Floating" value={<PnlText value={floating} className="text-lg" />} hint={`${positions.length} open`} />
-        <Kpi label="Realized today" value={<PnlText value={circuits.realizedToday} className="text-lg" />} hint={`${circuits.tradesToday} tickets`} />
+        <Kpi
+          label="Realized today"
+          value={<PnlText value={circuits.realizedToday} className="text-lg" />}
+          hint={`${circuits.tradesToday} tickets`}
+        />
         <Kpi label="Win rate" value={formatPct(hist.winRate)} hint={`${hist.trades} closed`} />
       </div>
 
@@ -98,7 +119,9 @@ function DeskPage() {
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Signal tape</CardTitle>
-            <Link to="/signals" className="text-xs text-muted hover:text-fg">All</Link>
+            <Link to="/signals" className="text-xs text-muted hover:text-fg">
+              All
+            </Link>
           </CardHeader>
           <ul className="space-y-2">
             {liveSignals.map((s) => (
@@ -122,6 +145,20 @@ function DeskPage() {
           </ul>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Activity</CardTitle>
+        </CardHeader>
+        <ul className="max-h-40 space-y-1.5 overflow-y-auto font-mono text-[11px] text-muted">
+          {log.slice(0, 12).map((e) => (
+            <li key={e.id} className="flex gap-2">
+              <span className="shrink-0 tabular">{formatTime(e.at, now)}</span>
+              <span className="text-fg">{e.text}</span>
+            </li>
+          ))}
+        </ul>
+      </Card>
     </div>
   );
 }
