@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { randomUUID } from "node:crypto";
 import { requireUserId, UnauthorizedError } from "@/lib/auth/verify.server";
 import { getSql } from "@/lib/db";
 import { encryptMt5Password } from "@/lib/mt5-credentials.server";
@@ -54,10 +55,10 @@ export const Route = createFileRoute("/api/accounts/mt5/connect")({
 
           const rows = await sql.query(
             `insert into volt_broker_connections
-              (user_id, platform, broker, server, login, environment, credential_ciphertext, status)
-             values ($1,'MT5',$2,$3,$4,$5,$6,'pending')
+              (id, user_id, platform, broker, server, login, environment, credential_ciphertext, status)
+             values ($1,$2,'MT5',$3,$4,$5,$6,$7,'pending')
              returning id, platform, broker, server, login, environment, status, trading_enabled, created_at, updated_at`,
-            [userId, broker, server, login, environment, ciphertext],
+            [randomUUID(), userId, broker, server, login, environment, ciphertext],
           );
           return Response.json({ ok: true, account: rows[0] }, { status: 202 });
         } catch (error) {
