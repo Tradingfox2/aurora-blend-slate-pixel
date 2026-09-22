@@ -57,3 +57,42 @@ export function totals(history: ClosedTrade[]) {
     wins,
   };
 }
+
+export function journalStats(history: ClosedTrade[]) {
+  if (!history.length) {
+    return {
+      trades: 0,
+      profit: 0,
+      winRate: 0,
+      avgMfe: 0,
+      avgMae: 0,
+      avgHoldMin: 0,
+      efficiency: 0,
+      expectancy: 0,
+    };
+  }
+  const wins = history.filter((h) => h.profit > 0);
+  const profit = history.reduce((s, r) => s + r.profit, 0);
+  const avgMfe = history.reduce((s, r) => s + (r.mfe ?? 0), 0) / history.length;
+  const avgMae = history.reduce((s, r) => s + (r.mae ?? 0), 0) / history.length;
+  const avgHoldMin =
+    history.reduce((s, r) => s + (r.durationMs ?? Math.max(0, r.closeTime - r.openTime)), 0) /
+    history.length /
+    60_000;
+  const captured = history.reduce((s, r) => {
+    const mfe = r.mfe ?? 0;
+    if (mfe <= 0) return s;
+    return s + Math.min(1, Math.max(0, r.profit) / mfe);
+  }, 0);
+  const withMfe = history.filter((r) => (r.mfe ?? 0) > 0).length || 1;
+  return {
+    trades: history.length,
+    profit,
+    winRate: wins.length / history.length,
+    avgMfe,
+    avgMae,
+    avgHoldMin,
+    efficiency: captured / withMfe,
+    expectancy: profit / history.length,
+  };
+}
