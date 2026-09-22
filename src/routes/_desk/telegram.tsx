@@ -42,12 +42,12 @@ function TelegramPage() {
 
   const [connectOpen, setConnectOpen] = useState(false);
   const [step, setStep] = useState<"phone" | "code" | "2fa">("phone");
-  const [phone, setPhone] = useState("+44 7700 900019");
+  const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState("XAUUSD BUY NOW\nEntry 3684.50\nSL 3676.20\nTP1 3692.00\nTP2 3701.40");
-  const [sourceId, setSourceId] = useState(sources[0]?.id ?? "gold-sniper");
+  const [draft, setDraft] = useState("");
+  const [sourceId, setSourceId] = useState(sources[0]?.id ?? "");
   const [grokBusy, setGrokBusy] = useState<string | null>(null);
 
   async function runGrok(signalId: string, text: string) {
@@ -81,7 +81,7 @@ function TelegramPage() {
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-subtle">Intake</p>
           <h1 className="mt-1 font-display text-2xl font-semibold tracking-[-0.03em]">Telegram</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            User session, not a bot. Disconnect fully stops the mock feed and clears listen/auto-trade flags.
+            User session, not a bot. Disconnect fully stops the feed and clears listen/auto-trade flags.
           </p>
         </div>
         {telegram.connected ? (
@@ -121,38 +121,44 @@ function TelegramPage() {
             <CardTitle>Chats</CardTitle>
             <span className="text-xs text-muted">{sources.length}</span>
           </CardHeader>
-          <ul className="space-y-2">
-            {sources.map((src) => (
-              <li key={src.id} className="rounded-md bg-bg-subtle p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium">{src.name}</p>
-                    <p className="text-xs text-muted">
-                      @{src.username} · {chatTitle(src.kind)} · {src.members.toLocaleString()}
-                    </p>
+          {sources.length === 0 ? (
+            <p className="px-1 py-6 text-center text-sm text-muted">
+              No chats yet. Connect a Telegram session to load channels, or inject a test message after connecting.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {sources.map((src) => (
+                <li key={src.id} className="rounded-md bg-bg-subtle p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">{src.name}</p>
+                      <p className="text-xs text-muted">
+                        @{src.username} · {chatTitle(src.kind)} · {src.members.toLocaleString()}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-4">
-                  <label className="flex items-center gap-2 text-xs text-muted">
-                    <Switch
-                      checked={src.listening}
-                      disabled={!telegram.connected}
-                      onCheckedChange={(v) => patchSource(src.id, { listening: v })}
-                    />
-                    Listen
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-muted">
-                    <Switch
-                      checked={src.autoTrade}
-                      onCheckedChange={(v) => patchSource(src.id, { autoTrade: v })}
-                      disabled={!src.listening || !telegram.connected}
-                    />
-                    Auto-trade
-                  </label>
-                </div>
-              </li>
-            ))}
-          </ul>
+                  <div className="mt-3 flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-2 text-xs text-muted">
+                      <Switch
+                        checked={src.listening}
+                        disabled={!telegram.connected}
+                        onCheckedChange={(v) => patchSource(src.id, { listening: v })}
+                      />
+                      Listen
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-muted">
+                      <Switch
+                        checked={src.autoTrade}
+                        onCheckedChange={(v) => patchSource(src.id, { autoTrade: v })}
+                        disabled={!src.listening || !telegram.connected}
+                      />
+                      Auto-trade
+                    </label>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
 
         <div className="flex flex-col gap-3 lg:col-span-3">
@@ -165,74 +171,90 @@ function TelegramPage() {
                 className="h-10 rounded-sm bg-bg-subtle px-3 text-sm shadow-[var(--shadow-border)]"
                 value={sourceId}
                 onChange={(e) => setSourceId(e.target.value)}
-                disabled={!telegram.connected}
+                disabled={!telegram.connected || sources.length === 0}
               >
-                {sources.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
+                {sources.length === 0 ? (
+                  <option value="">No chats</option>
+                ) : (
+                  sources.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))
+                )}
               </select>
               <Button
-                disabled={!telegram.connected}
+                disabled={!telegram.connected || !sourceId || !draft.trim()}
                 onClick={() => {
                   const sig = ingestMessage(sourceId, draft, "you", true);
                   if (sig) toast(`Assigned ${sig.number}`);
-                  else toast("Connect Telegram first");
+                  else toast("Connect Telegram and select a chat first");
                 }}
               >
                 Ingest
               </Button>
             </div>
-            <Textarea className="mt-3 font-mono text-xs" value={draft} onChange={(e) => setDraft(e.target.value)} />
+            <Textarea
+              className="mt-3 font-mono text-xs"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Paste a signal text…"
+              disabled={!telegram.connected}
+            />
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>Live feed</CardTitle>
             </CardHeader>
-            <ul className="space-y-3">
-              {messages.map((m) => {
-                const src = sources.find((s) => s.id === m.sourceId);
-                const sig = signals.find((s) => s.id === m.signalId);
-                return (
-                  <li key={m.id} className="rounded-md bg-bg-subtle p-3">
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                      <span className="font-medium text-fg">{src?.name}</span>
-                      <span>{m.from}</span>
-                      <span className="ml-auto font-mono tabular">{formatTime(m.at, now)}</span>
-                    </div>
-                    <pre className="mt-2 whitespace-pre-wrap font-mono text-xs leading-relaxed text-fg">{m.text}</pre>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {sig ? (
-                        <>
-                          <SignalNo n={sig.number} />
-                          <SignalStatusChip status={sig.status} />
-                          <span className="font-mono text-[11px] text-muted">{Math.round(sig.confidence * 100)}%</span>
-                          {sig.parsed && (sig.status === "interpreted" || sig.status === "received") ? (
-                            <Button size="sm" onClick={() => executeSignal(sig.id)}>
-                              Route
-                            </Button>
-                          ) : null}
-                          {sig.confidence < 0.8 ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={grokBusy === sig.id}
-                              onClick={() => runGrok(sig.id, m.text)}
-                            >
-                              {grokBusy === sig.id ? "Grok…" : "Interpret with Grok"}
-                            </Button>
-                          ) : null}
-                        </>
-                      ) : (
-                        <Badge variant="outline">chat</Badge>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            {messages.length === 0 ? (
+              <p className="px-1 py-8 text-center text-sm text-muted">
+                Feed is empty. Messages appear here after connect + inject or live channel traffic.
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {messages.map((m) => {
+                  const src = sources.find((s) => s.id === m.sourceId);
+                  const sig = signals.find((s) => s.id === m.signalId);
+                  return (
+                    <li key={m.id} className="rounded-md bg-bg-subtle p-3">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                        <span className="font-medium text-fg">{src?.name}</span>
+                        <span>{m.from}</span>
+                        <span className="ml-auto font-mono tabular">{formatTime(m.at, now)}</span>
+                      </div>
+                      <pre className="mt-2 whitespace-pre-wrap font-mono text-xs leading-relaxed text-fg">{m.text}</pre>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {sig ? (
+                          <>
+                            <SignalNo n={sig.number} />
+                            <SignalStatusChip status={sig.status} />
+                            <span className="font-mono text-[11px] text-muted">{Math.round(sig.confidence * 100)}%</span>
+                            {sig.parsed && (sig.status === "interpreted" || sig.status === "received") ? (
+                              <Button size="sm" onClick={() => executeSignal(sig.id)}>
+                                Route
+                              </Button>
+                            ) : null}
+                            {sig.confidence < 0.8 ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={grokBusy === sig.id}
+                                onClick={() => runGrok(sig.id, m.text)}
+                              >
+                                {grokBusy === sig.id ? "Grok…" : "Interpret with Grok"}
+                              </Button>
+                            ) : null}
+                          </>
+                        ) : (
+                          <Badge variant="outline">chat</Badge>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </Card>
         </div>
       </div>
@@ -243,13 +265,18 @@ function TelegramPage() {
             <DialogTitle>Telegram user session</DialogTitle>
             <DialogDescription>
               Phone → login code → optional 2FA. Same flow as the official app. Session is paper-simulated in this
-              preview.
+              preview build.
             </DialogDescription>
           </DialogHeader>
           {step === "phone" ? (
             <div className="space-y-3">
               <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Input
+                id="phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+1 555 000 0000"
+              />
               <Button
                 className="w-full"
                 disabled={busy || !phone.trim()}
