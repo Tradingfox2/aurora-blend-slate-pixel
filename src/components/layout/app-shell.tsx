@@ -116,7 +116,7 @@ export function AppShell() {
             TG {telegram.connected ? "session" : "offline"}
           </span>
           <span className="hidden items-center gap-1.5 text-xs text-muted md:flex">
-            <span className={cn("size-1.5 rounded-full", online > 0 && bridge.enabled ? "bg-buy" : "bg-subtle")} />
+            <span className={cn("size-1.5 rounded-full", online > 0 && bridge?.enabled ? "bg-buy" : "bg-subtle")} />
             {online}/{accounts.length} EA
           </span>
           <span className="hidden font-mono text-xs tabular text-muted lg:inline">{formatClock(now)}</span>
@@ -144,7 +144,7 @@ export function AppShell() {
             <p className="text-[10px] font-medium uppercase tracking-wide text-subtle">Engine</p>
             <p className="mt-1 font-mono text-xs tabular text-muted">in-memory · 220ms</p>
             <p className="mt-1 text-[11px] leading-snug text-subtle">
-              Bridge {bridge.enabled ? "armed" : "idle"} · TG {telegram.connected ? "live" : "off"}
+              Bridge {bridge?.enabled ? "armed" : "idle"} · TG {telegram.connected ? "live" : "off"}
             </p>
           </div>
         </aside>

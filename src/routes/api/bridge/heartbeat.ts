@@ -49,7 +49,7 @@ export const Route = createFileRoute("/api/bridge/heartbeat")({
           await sql.query("update volt_bridge_commands set status='claimed', claimed_at=now() where id=$1 and status='queued'", [c.id]);
         }
         return Response.json({ ok: true, login, platform, commands: commands.map((c) => ({
-          id: c.id, type: c.type, payload: JSON.parse(c.payload),
+          id: c.id, type: c.type, payload: JSON.parse(String(c.payload)),
         })), serverTime: Date.now() });
       },
     },

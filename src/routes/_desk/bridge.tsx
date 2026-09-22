@@ -22,7 +22,7 @@ function BridgePage() {
   const pulseBridge = useDesk((s) => s.pulseBridge);
   const setAccountConnected = useDesk((s) => s.setAccountConnected);
   const beginAccountConnect = useDesk((s) => s.beginAccountConnect);
-  const [tokenDraft, setTokenDraft] = useState(bridge.token);
+  const [tokenDraft, setTokenDraft] = useState(bridge?.token ?? "");
 
   const online = accounts.filter((a) => a.connected).length;
 
@@ -42,7 +42,7 @@ function BridgePage() {
           <CardHeader>
             <CardTitle>Bridge</CardTitle>
             <Switch
-              checked={bridge.enabled}
+              checked={Boolean(bridge?.enabled)}
               onCheckedChange={(enabled) => {
                 patchBridge({ enabled });
                 toast(enabled ? "Bridge armed" : "Bridge idle");
@@ -50,17 +50,17 @@ function BridgePage() {
             />
           </CardHeader>
           <p className="text-sm text-muted">
-            {bridge.enabled ? "Accepting EA heartbeats" : "Paused — terminals keep last state"}
+            {bridge?.enabled ? "Accepting EA heartbeats" : "Paused — terminals keep last state"}
           </p>
           <p className="mt-3 font-mono text-xs text-subtle">
-            Heartbeats {bridge.heartbeats} · EA {bridge.eaVersion}
+            Heartbeats {bridge?.heartbeats ?? 0} · EA {bridge?.eaVersion ?? "1.4.2"}
           </p>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle>Last poll</CardTitle>
-            <Badge variant={bridge.lastPollAt ? "live" : "outline"}>
-              {bridge.lastPollAt ? formatTime(bridge.lastPollAt, now) : "never"}
+            <Badge variant={bridge?.lastPollAt ? "live" : "outline"}>
+              {bridge?.lastPollAt ? formatTime(bridge.lastPollAt, now) : "never"}
             </Badge>
           </CardHeader>
           <p className="font-mono text-sm tabular text-muted">{formatClock(now)}</p>
@@ -96,7 +96,7 @@ function BridgePage() {
           <Button
             size="sm"
             onClick={() => {
-              patchBridge({ token: tokenDraft || bridge.token });
+              patchBridge({ token: tokenDraft || bridge?.token || "volt_live_demo" });
               toast("Token saved");
             }}
           >
@@ -144,7 +144,7 @@ function BridgePage() {
               </div>
               <div>
                 <dt className="text-subtle">EA build</dt>
-                <dd className="font-mono text-fg">{a.eaVersion ?? bridge.eaVersion}</dd>
+                <dd className="font-mono text-fg">{a.eaVersion ?? bridge?.eaVersion ?? "1.4.2"}</dd>
               </div>
               <div>
                 <dt className="text-subtle">Heartbeat</dt>

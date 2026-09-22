@@ -205,7 +205,7 @@ export function applyOpen(
   let positions = desk.positions.slice();
   let orders = desk.orders.slice();
   let accounts = desk.accounts.slice();
-  let history = desk.history.slice();
+  const history = desk.history.slice();
   let ticket = desk.nextTicket;
   const now = desk.now;
   const masters = accounts.filter((a) => a.receivesSignals && a.role !== "follower");
@@ -421,7 +421,7 @@ export function applyManage(
 
 export function matchPendings(desk: DeskSnapshot): ApplyResult {
   const events: ExecEvent[] = [];
-  let positions = desk.positions.slice();
+  const positions = desk.positions.slice();
   const remain: PendingOrder[] = [];
   const now = desk.now;
   for (const o of desk.orders) {
@@ -486,7 +486,7 @@ export function manageOpenPositions(desk: DeskSnapshot): ApplyResult {
     const q = desk.quotes[p.symbol];
     const px = markPrice(p.side, q);
     let sl = p.sl;
-    let tps = p.tps.map((t) => ({ ...t }));
+    const tps = p.tps.map((t) => ({ ...t }));
     let lots = p.lots;
 
     if (p.trailingPips && p.trailingPips > 0) {
@@ -554,8 +554,7 @@ export function manageOpenPositions(desk: DeskSnapshot): ApplyResult {
     positions.push({ ...p, sl, tps, lots });
   }
 
-  const refreshed = refreshAccounts(accounts, positions, desk.quotes);
-  const master = refreshed.find((a) => a.role === "master") ?? refreshed[0];
+  const master = accounts.find((a) => a.role === "master") ?? accounts[0];
   const dayCap = master
     ? (master.risk.maxDailyLossPct / 100) * desk.circuits.dayStartEquity
     : Infinity;
@@ -575,13 +574,16 @@ export function manageOpenPositions(desk: DeskSnapshot): ApplyResult {
       const px = markPrice(p.side, q);
       const trade = closePosition(p, px, p.lots, "circuit flatten", now);
       history = [trade, ...history];
-      const i = refreshed.findIndex((a) => a.id === p.accountId);
-      if (i >= 0) refreshed[i].balance += trade.profit;
+      const i = accounts.findIndex((a) => a.id === p.accountId);
+      if (i >= 0) accounts[i].balance += trade.profit;
       events.push(event("circuit", `Flattened ${p.symbol} on circuit`));
     }
     positions = flattened;
     circuits = { ...circuits, globalHalt: true, reason: "Daily loss · flattened" };
   }
+
+  // Single refresh on final updated positions and balances
+  const refreshed = refreshAccounts(accounts, positions, desk.quotes);
 
   const signals = desk.signals.map((s) => {
     if (s.status !== "live" && s.status !== "managed") return s;
@@ -595,7 +597,7 @@ export function manageOpenPositions(desk: DeskSnapshot): ApplyResult {
     positions,
     orders: desk.orders,
     signals,
-    accounts: refreshAccounts(refreshed, positions, desk.quotes),
+    accounts: refreshed,
     history: history.slice(0, 400),
     circuits,
     nextTicket: desk.nextTicket,
