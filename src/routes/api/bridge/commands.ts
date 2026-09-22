@@ -11,12 +11,12 @@ export const Route = createFileRoute("/api/bridge/commands")({
       if(!login||!["MT4","MT5"].includes(platform))return Response.json({ok:false,error:"missing_login_or_platform"},{status:400});
       const {getSql}=await import("@/lib/db");const sql=await getSql();
       // Reclaim crashed/stale executions before claiming new work.
-      await sql.query(`update volt_bridge_commands set status='queued',claimed_at=null,claimed_until=null
-        where login=$1 and platform=$2 and status='claimed' and claimed_until is not null and claimed_until < now()`,[login,platform]);
+      await sql.query(`update volt_bridge_commands set status='queued',claimed_at=null
+        where login=$1 and platform=$2 and status='claimed' and claimed_at is not null and claimed_at < now()-interval '45 seconds'`,[login,platform]);
       const rows=await sql.query(`with candidates as (
           select id from volt_bridge_commands
           where login=$1 and platform=$2 and status='queued'
-            and (expires_at is null or expires_at > now())
+            
           order by created_at asc
           for update skip locked limit 10
         )
