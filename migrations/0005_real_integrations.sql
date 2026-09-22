@@ -35,10 +35,5 @@ create table if not exists volt_telegram_sources (
   updated_at timestamptz not null default now()
 );
 
-alter table volt_bridge_commands add column if not exists claimed_until timestamptz;
-alter table volt_bridge_commands add column if not exists attempts integer not null default 0;
-alter table volt_bridge_commands add column if not exists expires_at timestamptz;
-alter table volt_bridge_commands add column if not exists last_error text;
-
 create index if not exists volt_bridge_commands_lease_idx
-  on volt_bridge_commands (login, platform, status, claimed_until);
+  on volt_bridge_commands (login, platform, status, claimed_at);
