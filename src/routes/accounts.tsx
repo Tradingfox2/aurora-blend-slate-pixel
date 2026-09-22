@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
 type Account = {
@@ -45,7 +45,7 @@ function AccountsPage() {
     return () => window.clearInterval(id);
   }, []);
 
-  async function connect(e: React.FormEvent) {
+  async function connect(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
