@@ -16,6 +16,7 @@ import {
 import { parseSignal } from "./parser";
 import { createSeed } from "./seed";
 import { generateMessage } from "./telegram";
+import { enqueueBridgeCommand } from "./persist";
 import type {
   Account,
   BridgeState,
@@ -305,6 +306,35 @@ export const useDesk = create<DeskState>((set, get) => {
           : x,
       );
       set(mergeApply(s, { ...result, signals }));
+
+      // Live mode: persist execution instructions for connected MT4/MT5 terminals.
+      // Paper mode continues to update the local engine, but never queues broker orders.
+      if (!s.settings.paper && s.bridge.enabled) {
+        const routed = result.positions.filter((p) => p.signalId === signalId);
+        for (const account of s.accounts.filter((a) => a.connected && !a.frozen && a.receivesSignals)) {
+          const position = routed.find((p) => p.accountId === account.id);
+          if (!position) continue;
+          void enqueueBridgeCommand({
+            data: {
+              login: account.login,
+              platform: account.platform,
+              type: "open_market",
+              payload: {
+                accountId: account.id,
+                signalId,
+                ticket: position.ticket,
+                symbol: position.symbol,
+                side: position.side,
+                lots: position.lots,
+                sl: position.sl,
+                tp: position.tp,
+                magic: position.magic,
+                comment: position.comment,
+              },
+            },
+          });
+        }
+      }
     },
 
     ignoreSignal: (signalId) => {
