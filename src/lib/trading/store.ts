@@ -522,6 +522,10 @@ export const useDesk = create<DeskState>((set, get) => {
 
     bulk: (mode) => {
       const s = get();
+      if (!s.settings.paper) {
+        set({ log: [{ id: `ev_live_block_${Date.now()}`, at: Date.now(), kind: "reject", text: `Live bulk action blocked until broker command routing is implemented · ${mode}` }, ...s.log].slice(0, 160) });
+        return;
+      }
       const pnlOf = (p: Position) => {
         const q = s.quotes[p.symbol];
         const px = p.side === "buy" ? q.bid : q.ask;
