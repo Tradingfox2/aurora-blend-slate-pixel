@@ -1,61 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { env } from "@/lib/env.server";
 
 export const Route = createFileRoute("/api/telegram/auth/verify")({
-  server: {
-    handlers: {
-      POST: async ({ request }) => {
-        let body: { phone?: string; code?: string; phoneCodeHash?: string; password?: string };
-        try {
-          body = (await request.json()) as typeof body;
-        } catch {
-          return Response.json({ ok: false, error: "invalid_json" }, { status: 400 });
-        }
-
-        const phone = body.phone?.trim();
-        const code = body.code?.trim();
-
-        if (!phone || !code) {
-          return Response.json({ ok: false, error: "missing_phone_or_code" }, { status: 400 });
-        }
-
-        const { getSql } = await import("@/lib/db");
-        const sql = await getSql();
-
-        await sql.query(
-          `create table if not exists volt_telegram_sessions (
-            phone text primary key,
-            phone_code_hash text,
-            session_string text,
-            status text not null default 'pending',
-            created_at timestamptz not null default now(),
-            updated_at timestamptz not null default now()
-          )`,
-        );
-
-        const syntheticSession = `session_${Buffer.from(`${phone}_${Date.now()}`).toString("base64url")}`;
-
-        await sql.query(
-          `insert into volt_telegram_sessions (phone, phone_code_hash, session_string, status, updated_at)
-           values ($1, $2, $3, 'active', now())
-           on conflict (phone) do update set
-             session_string = excluded.session_string,
-             status = 'active',
-             updated_at = now()`,
-          [phone, body.phoneCodeHash ?? "", syntheticSession],
-        );
-
-        return Response.json({
-          ok: true,
-          phone,
-          connected: true,
-          sessionString: syntheticSession,
-          user: {
-            phone,
-            username: `user_${phone.replace(/\D/g, "").slice(-4)}`,
-            authenticatedAt: Date.now(),
-          },
+  server: { handlers: {
+    POST: async ({ request }) => {
+      let body: { phone?: string; code?: string; phoneCodeHash?: string; password?: string };
+      try { body = (await request.json()) as typeof body; }
+      catch { return Response.json({ok:false,error:"invalid_json"},{status:400}); }
+      const worker = env("TELEGRAM_WORKER_URL");
+      if (!worker) return Response.json({ok:false,error:"telegram_worker_not_configured",message:"Telegram authentication requires the persistent MTProto worker."},{status:503});
+      if (!body.phone?.trim() || !body.code?.trim() || !body.phoneCodeHash?.trim()) return Response.json({ok:false,error:"missing_phone_code_or_hash"},{status:400});
+      try {
+        const upstream = await fetch(new URL("/auth/verify", worker), {
+          method:"POST", headers:{"content-type":"application/json","x-volt-worker-token":env("TELEGRAM_WORKER_TOKEN") ?? ""},
+          body:JSON.stringify(body),
+          signal:AbortSignal.timeout(20000),
         });
-      },
-    },
-  },
+        const data = await upstream.json().catch(()=>({ok:false,error:"invalid_worker_response"}));
+        return Response.json(data,{status:upstream.status});
+      } catch {
+        return Response.json({ok:false,error:"telegram_worker_unreachable"},{status:503});
+      }
+    }
+  }}
 });
