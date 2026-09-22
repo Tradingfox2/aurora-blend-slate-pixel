@@ -20,6 +20,8 @@ import { Route as DeskRiskRouteImport } from './routes/_desk/risk'
 import { Route as DeskSettingsRouteImport } from './routes/_desk/settings'
 import { Route as DeskSignalsRouteImport } from './routes/_desk/signals'
 import { Route as DeskTelegramRouteImport } from './routes/_desk/telegram'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiReadinessRouteImport } from './routes/api/readiness'
 import { Route as ApiBridgeCommandsRouteImport } from './routes/api/bridge/commands'
 import { Route as ApiBridgeFillRouteImport } from './routes/api/bridge/fill'
 import { Route as ApiBridgeHeartbeatRouteImport } from './routes/api/bridge/heartbeat'
@@ -80,6 +82,16 @@ const DeskTelegramRoute = DeskTelegramRouteImport.update({
   path: '/telegram',
   getParentRoute: () => DeskRoute,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReadinessRoute = ApiReadinessRouteImport.update({
+  id: '/api/readiness',
+  path: '/api/readiness',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBridgeCommandsRoute = ApiBridgeCommandsRouteImport.update({
   id: '/api/bridge/commands',
   path: '/api/bridge/commands',
@@ -117,6 +129,8 @@ export interface FileRoutesByFullPath {
   '/settings': typeof DeskSettingsRoute
   '/signals': typeof DeskSignalsRoute
   '/telegram': typeof DeskTelegramRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/readiness': typeof ApiReadinessRoute
   '/api/bridge/commands': typeof ApiBridgeCommandsRoute
   '/api/bridge/fill': typeof ApiBridgeFillRoute
   '/api/bridge/heartbeat': typeof ApiBridgeHeartbeatRoute
@@ -133,6 +147,8 @@ export interface FileRoutesByTo {
   '/settings': typeof DeskSettingsRoute
   '/signals': typeof DeskSignalsRoute
   '/telegram': typeof DeskTelegramRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/readiness': typeof ApiReadinessRoute
   '/': typeof DeskIndexRoute
   '/api/bridge/commands': typeof ApiBridgeCommandsRoute
   '/api/bridge/fill': typeof ApiBridgeFillRoute
@@ -152,6 +168,8 @@ export interface FileRoutesById {
   '/_desk/settings': typeof DeskSettingsRoute
   '/_desk/signals': typeof DeskSignalsRoute
   '/_desk/telegram': typeof DeskTelegramRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/readiness': typeof ApiReadinessRoute
   '/_desk/': typeof DeskIndexRoute
   '/api/bridge/commands': typeof ApiBridgeCommandsRoute
   '/api/bridge/fill': typeof ApiBridgeFillRoute
@@ -172,6 +190,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signals'
     | '/telegram'
+    | '/api/health'
+    | '/api/readiness'
     | '/api/bridge/commands'
     | '/api/bridge/fill'
     | '/api/bridge/heartbeat'
@@ -188,6 +208,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signals'
     | '/telegram'
+    | '/api/health'
+    | '/api/readiness'
     | '/'
     | '/api/bridge/commands'
     | '/api/bridge/fill'
@@ -206,6 +228,8 @@ export interface FileRouteTypes {
     | '/_desk/settings'
     | '/_desk/signals'
     | '/_desk/telegram'
+    | '/api/health'
+    | '/api/readiness'
     | '/_desk/'
     | '/api/bridge/commands'
     | '/api/bridge/fill'
@@ -216,6 +240,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   DeskRoute: typeof DeskRouteWithChildren
+  ApiHealthRoute: typeof ApiHealthRoute
+  ApiReadinessRoute: typeof ApiReadinessRoute
   ApiBridgeCommandsRoute: typeof ApiBridgeCommandsRoute
   ApiBridgeFillRoute: typeof ApiBridgeFillRoute
   ApiBridgeHeartbeatRoute: typeof ApiBridgeHeartbeatRoute
@@ -302,6 +328,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeskTelegramRouteImport
       parentRoute: typeof DeskRoute
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/readiness': {
+      id: '/api/readiness'
+      path: '/api/readiness'
+      fullPath: '/api/readiness'
+      preLoaderRoute: typeof ApiReadinessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/bridge/commands': {
       id: '/api/bridge/commands'
       path: '/api/bridge/commands'
@@ -370,6 +410,8 @@ const DeskRouteWithChildren = DeskRoute._addFileChildren(DeskRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   DeskRoute: DeskRouteWithChildren,
+  ApiHealthRoute: ApiHealthRoute,
+  ApiReadinessRoute: ApiReadinessRoute,
   ApiBridgeCommandsRoute: ApiBridgeCommandsRoute,
   ApiBridgeFillRoute: ApiBridgeFillRoute,
   ApiBridgeHeartbeatRoute: ApiBridgeHeartbeatRoute,
