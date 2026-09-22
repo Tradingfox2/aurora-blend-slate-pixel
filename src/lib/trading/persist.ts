@@ -81,8 +81,8 @@ export const enqueueBridgeCommand = createServerFn({ method: "POST" })
       const sql = await getSql();
       const id = `cmd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
       await sql.query(
-        `insert into volt_bridge_commands(id,login,platform,command_type,payload_json,expires_at)
-         values($1,$2,$3,$4,$5,now()+interval '10 minutes')`,
+        `insert into volt_bridge_commands(id,login,platform,command_type,payload_json)
+         values($1,$2,$3,$4,$5)`,
         [id, data.login, data.platform, data.type, JSON.stringify(data.payload)],
       );
       return { ok: true as const, id };
