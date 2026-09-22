@@ -9,7 +9,6 @@ import {
   matchPendings,
   modifyPosition,
   positionPnl,
-  refreshAccounts,
   tickQuotes,
   type ApplyResult,
 } from "./engine";
@@ -360,7 +359,8 @@ export const useDesk = create<DeskState>((set, get) => {
         const mae = Math.max(p.mae ?? 0, -pnl);
         return { ...p, mfe, mae };
       });
-      const accounts = refreshAccounts(next.accounts, positions, quotes).map((a) =>
+      // Accounts were already refreshed in manageOpenPositions with current positions & quotes
+      const accounts = next.accounts.map((a) =>
         a.connected && !a.connecting
           ? { ...a, lastHeartbeat: now, pingMs: Math.max(4, Math.round(a.pingMs + (Math.random() - 0.5) * 2)) }
           : a,

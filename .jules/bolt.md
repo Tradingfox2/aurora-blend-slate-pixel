@@ -1,0 +1,3 @@
+## 2025-05-20 - Engine Tick Account Refresh & Trading Stats Optimization
+**Learning:** Redundant calls to `refreshAccounts` inside `engine.ts` and `store.ts` tick loop caused repetitive $O(N \cdot M)$ floating PnL and margin recalculations on every 220ms tick. Grouping trade history by `sourceId` and computing `journalStats` / `providerStats` in a single pass $O(N)$ loop significantly reduces CPU time and array allocations on every tick and render.
+**Action:** Always ensure state updates in tick intervals don't duplicate calculations already done by engine sub-functions, and replace multi-pass `filter`/`reduce` chains on array data with single-pass grouping maps and single loops.
