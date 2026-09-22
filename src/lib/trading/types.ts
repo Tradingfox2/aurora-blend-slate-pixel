@@ -89,15 +89,13 @@ export interface Account {
   equity: number;
   margin: number;
   connected: boolean;
-  connecting: boolean;
+  connecting?: boolean;
   pingMs: number;
   frozen: boolean;
   receivesSignals: boolean;
   risk: RiskSettings;
   copy?: CopySettings;
-  /** Last successful EA heartbeat (ms) */
   lastHeartbeat?: number;
-  /** Simulated EA build string */
   eaVersion?: string;
   bridgeToken?: string;
 }
@@ -191,10 +189,8 @@ export interface Position {
   magic: number;
   comment: string;
   commission: number;
-  /** Max favorable excursion in USD since open */
-  mfe: number;
-  /** Max adverse excursion in USD since open */
-  mae: number;
+  mfe?: number;
+  mae?: number;
 }
 
 export interface PendingOrder {
@@ -234,9 +230,9 @@ export interface ClosedTrade {
   openTime: number;
   closeTime: number;
   comment: string;
-  mfe: number;
-  mae: number;
-  durationMs: number;
+  mfe?: number;
+  mae?: number;
+  durationMs?: number;
 }
 
 export interface CircuitState {
@@ -290,12 +286,10 @@ export interface TelegramSession {
   connecting: boolean;
   user: string | null;
   phone: string | null;
-  /** When the mock feed last injected a message */
-  lastIngestAt: number | null;
+  lastIngestAt?: number | null;
 }
 
 export interface BridgeState {
-  /** Shared secret the local EA posts heartbeats with */
   token: string;
   enabled: boolean;
   lastPollAt: number | null;
@@ -315,7 +309,7 @@ export interface DeskSnapshot {
   circuits: CircuitState;
   telegram: TelegramSession;
   settings: AppSettings;
-  bridge: BridgeState;
+  bridge?: BridgeState;
   log: ExecEvent[];
   equity: EquityPoint[];
   nextSignalNumber: number;
