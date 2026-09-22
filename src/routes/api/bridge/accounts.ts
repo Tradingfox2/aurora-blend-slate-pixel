@@ -13,6 +13,15 @@ export const Route = createFileRoute("/api/bridge/accounts")({
               and last_heartbeat > now() - interval '45 seconds'
             order by platform, login`,
         );
+        const stateRows = await sql.query(
+          `select login, platform, positions_json, orders_json
+             from volt_bridge_state
+            where updated_at > now() - interval '45 seconds'`,
+        );
+        const stateByKey = new Map(stateRows.map((r: any) => [
+          `${r.platform}:${r.login}`,
+          { positions: JSON.parse(String(r.positions_json || "[]")), orders: JSON.parse(String(r.orders_json || "[]")) },
+        ]));
         return Response.json({
           ok: true,
           accounts: rows.map((r: any) => ({
@@ -42,6 +51,36 @@ export const Route = createFileRoute("/api/bridge/accounts")({
             lastHeartbeat: new Date(r.last_heartbeat).getTime(),
             eaVersion: r.ea_version,
           })),
+          positions: rows.flatMap((r: any) => {
+            const state = stateByKey.get(`${r.platform}:${r.login}`);
+            return (state?.positions || []).map((p: any) => ({
+              id: `broker-${r.platform}-${r.login}-${p.ticket}`,
+              ticket: Number(p.ticket),
+              accountId: `bridge-${r.platform}-${r.login}`,
+              signalId: null,
+              signalNumber: null,
+              sourceId: null,
+              symbol: p.symbol,
+              side: p.side,
+              lots: Number(p.lots || 0),
+              openPrice: Number(p.openPrice || 0),
+              sl: p.sl == null ? null : Number(p.sl),
+              tp: p.tp == null ? null : Number(p.tp),
+              tps: [],
+              beAfterTp1: false,
+              trailingPips: null,
+              openTime: Number(p.openTime || Date.now()) * 1000,
+              magic: Number(p.magic || 0),
+              comment: String(p.comment || ""),
+              commission: 0,
+              mfe: Math.max(0, Number(p.profit || 0)),
+              mae: Math.max(0, -Number(p.profit || 0)),
+            }));
+          }),
+          orders: rows.flatMap((r: any) => {
+            const state = stateByKey.get(`${r.platform}:${r.login}`);
+            return state?.orders || [];
+          }),
           serverTime: Date.now(),
         });
       },
