@@ -308,7 +308,7 @@ export const useDesk = create<DeskState>((set, get) => {
 
       // Live mode: persist execution instructions for connected MT4/MT5 terminals.
       // Paper mode continues to update the local engine, but never queues broker orders.
-      if (!s.settings.paper && s.bridge.enabled) {
+      if (!s.settings.paper && s.bridge?.enabled) {
         const routed = result.positions.filter((p) => p.signalId === signalId);
         for (const account of s.accounts.filter((a) => a.connected && !a.frozen && a.receivesSignals)) {
           const position = routed.find((p) => p.accountId === account.id);
@@ -416,7 +416,7 @@ export const useDesk = create<DeskState>((set, get) => {
                 pingMs: connected ? 8 + Math.floor(Math.random() * 22) : 0,
                 frozen: connected ? false : true,
                 lastHeartbeat: connected ? Date.now() : a.lastHeartbeat,
-                eaVersion: a.eaVersion ?? s.bridge.eaVersion,
+                eaVersion: a.eaVersion ?? s.bridge?.eaVersion ?? "1.4.2",
               }
             : a,
         );
@@ -473,37 +473,40 @@ export const useDesk = create<DeskState>((set, get) => {
     },
 
     patchBridge: (patch) => {
-      set((s) => ({ bridge: { ...s.bridge, ...patch } }));
+      set((s) => ({ bridge: { ...(s.bridge ?? DEFAULT_BRIDGE), ...patch } }));
     },
 
     pulseBridge: () => {
       const now = Date.now();
-      set((s) => ({
-        bridge: {
-          ...s.bridge,
-          lastPollAt: now,
-          heartbeats: s.bridge.heartbeats + 1,
-        },
-        accounts: s.accounts.map((a) =>
-          a.connected
-            ? {
-                ...a,
-                lastHeartbeat: now,
-                pingMs: 6 + Math.floor(Math.random() * 18),
-                eaVersion: s.bridge.eaVersion,
-              }
-            : a,
-        ),
-        log: [
-          {
-            id: `ev_br_${now}`,
-            at: now,
-            kind: "bridge" as const,
-            text: `EA heartbeat · ${s.bridge.eaVersion}`,
+      set((s) => {
+        const bridge = s.bridge ?? DEFAULT_BRIDGE;
+        return {
+          bridge: {
+            ...bridge,
+            lastPollAt: now,
+            heartbeats: bridge.heartbeats + 1,
           },
-          ...s.log,
-        ].slice(0, 160),
-      }));
+          accounts: s.accounts.map((a) =>
+            a.connected
+              ? {
+                  ...a,
+                  lastHeartbeat: now,
+                  pingMs: 6 + Math.floor(Math.random() * 18),
+                  eaVersion: bridge.eaVersion,
+                }
+              : a,
+          ),
+          log: [
+            {
+              id: `ev_br_${now}`,
+              at: now,
+              kind: "bridge" as const,
+              text: `EA heartbeat · ${bridge.eaVersion}`,
+            },
+            ...s.log,
+          ].slice(0, 160),
+        };
+      });
     },
 
     bulk: (mode) => {
@@ -689,7 +692,7 @@ export function startDesk() {
   if (bridgeTimer) window.clearInterval(bridgeTimer);
   bridgeTimer = window.setInterval(() => {
     const s = useDesk.getState();
-    if (s.bridge.enabled && s.accounts.some((a) => a.connected)) {
+    if (s.bridge?.enabled && s.accounts.some((a) => a.connected)) {
       useDesk.getState().pulseBridge();
     }
   }, 18000);

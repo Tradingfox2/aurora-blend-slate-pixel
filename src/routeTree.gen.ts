@@ -23,6 +23,8 @@ import { Route as DeskTelegramRouteImport } from './routes/_desk/telegram'
 import { Route as ApiBridgeCommandsRouteImport } from './routes/api/bridge/commands'
 import { Route as ApiBridgeFillRouteImport } from './routes/api/bridge/fill'
 import { Route as ApiBridgeHeartbeatRouteImport } from './routes/api/bridge/heartbeat'
+import { Route as ApiTelegramAuthSendCodeRouteImport } from './routes/api/telegram/auth/send-code'
+import { Route as ApiTelegramAuthVerifyRouteImport } from './routes/api/telegram/auth/verify'
 
 const DeskRoute = DeskRouteImport.update({
   id: '/_desk',
@@ -93,6 +95,16 @@ const ApiBridgeHeartbeatRoute = ApiBridgeHeartbeatRouteImport.update({
   path: '/api/bridge/heartbeat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTelegramAuthSendCodeRoute = ApiTelegramAuthSendCodeRouteImport.update({
+  id: '/api/telegram/auth/send-code',
+  path: '/api/telegram/auth/send-code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTelegramAuthVerifyRoute = ApiTelegramAuthVerifyRouteImport.update({
+  id: '/api/telegram/auth/verify',
+  path: '/api/telegram/auth/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof DeskIndexRoute
@@ -108,6 +120,8 @@ export interface FileRoutesByFullPath {
   '/api/bridge/commands': typeof ApiBridgeCommandsRoute
   '/api/bridge/fill': typeof ApiBridgeFillRoute
   '/api/bridge/heartbeat': typeof ApiBridgeHeartbeatRoute
+  '/api/telegram/auth/send-code': typeof ApiTelegramAuthSendCodeRoute
+  '/api/telegram/auth/verify': typeof ApiTelegramAuthVerifyRoute
 }
 export interface FileRoutesByTo {
   '/accounts': typeof DeskAccountsRoute
@@ -123,6 +137,8 @@ export interface FileRoutesByTo {
   '/api/bridge/commands': typeof ApiBridgeCommandsRoute
   '/api/bridge/fill': typeof ApiBridgeFillRoute
   '/api/bridge/heartbeat': typeof ApiBridgeHeartbeatRoute
+  '/api/telegram/auth/send-code': typeof ApiTelegramAuthSendCodeRoute
+  '/api/telegram/auth/verify': typeof ApiTelegramAuthVerifyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -140,6 +156,8 @@ export interface FileRoutesById {
   '/api/bridge/commands': typeof ApiBridgeCommandsRoute
   '/api/bridge/fill': typeof ApiBridgeFillRoute
   '/api/bridge/heartbeat': typeof ApiBridgeHeartbeatRoute
+  '/api/telegram/auth/send-code': typeof ApiTelegramAuthSendCodeRoute
+  '/api/telegram/auth/verify': typeof ApiTelegramAuthVerifyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -157,6 +175,8 @@ export interface FileRouteTypes {
     | '/api/bridge/commands'
     | '/api/bridge/fill'
     | '/api/bridge/heartbeat'
+    | '/api/telegram/auth/send-code'
+    | '/api/telegram/auth/verify'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/accounts'
@@ -172,6 +192,8 @@ export interface FileRouteTypes {
     | '/api/bridge/commands'
     | '/api/bridge/fill'
     | '/api/bridge/heartbeat'
+    | '/api/telegram/auth/send-code'
+    | '/api/telegram/auth/verify'
   id:
     | '__root__'
     | '/_desk'
@@ -188,6 +210,8 @@ export interface FileRouteTypes {
     | '/api/bridge/commands'
     | '/api/bridge/fill'
     | '/api/bridge/heartbeat'
+    | '/api/telegram/auth/send-code'
+    | '/api/telegram/auth/verify'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -195,6 +219,8 @@ export interface RootRouteChildren {
   ApiBridgeCommandsRoute: typeof ApiBridgeCommandsRoute
   ApiBridgeFillRoute: typeof ApiBridgeFillRoute
   ApiBridgeHeartbeatRoute: typeof ApiBridgeHeartbeatRoute
+  ApiTelegramAuthSendCodeRoute: typeof ApiTelegramAuthSendCodeRoute
+  ApiTelegramAuthVerifyRoute: typeof ApiTelegramAuthVerifyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -297,6 +323,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBridgeHeartbeatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/telegram/auth/send-code': {
+      id: '/api/telegram/auth/send-code'
+      path: '/api/telegram/auth/send-code'
+      fullPath: '/api/telegram/auth/send-code'
+      preLoaderRoute: typeof ApiTelegramAuthSendCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/telegram/auth/verify': {
+      id: '/api/telegram/auth/verify'
+      path: '/api/telegram/auth/verify'
+      fullPath: '/api/telegram/auth/verify'
+      preLoaderRoute: typeof ApiTelegramAuthVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -333,6 +373,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBridgeCommandsRoute: ApiBridgeCommandsRoute,
   ApiBridgeFillRoute: ApiBridgeFillRoute,
   ApiBridgeHeartbeatRoute: ApiBridgeHeartbeatRoute,
+  ApiTelegramAuthSendCodeRoute: ApiTelegramAuthSendCodeRoute,
+  ApiTelegramAuthVerifyRoute: ApiTelegramAuthVerifyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
