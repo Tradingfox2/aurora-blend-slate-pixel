@@ -33,6 +33,7 @@ function TelegramPage() {
   const now = useDesk((s) => s.now);
   const patchSource = useDesk((s) => s.patchSource);
   const connectTelegram = useDesk((s) => s.connectTelegram);
+  const beginTelegramConnect = useDesk((s) => s.beginTelegramConnect);
   const disconnectTelegram = useDesk((s) => s.disconnectTelegram);
   const ingestMessage = useDesk((s) => s.ingestMessage);
   const interpretSignal = useDesk((s) => s.interpretSignal);
@@ -40,9 +41,10 @@ function TelegramPage() {
   const settings = useDesk((s) => s.settings);
 
   const [connectOpen, setConnectOpen] = useState(false);
-  const [step, setStep] = useState<"phone" | "code">("phone");
+  const [step, setStep] = useState<"phone" | "code" | "2fa">("phone");
   const [phone, setPhone] = useState("+44 7700 900019");
   const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState("XAUUSD BUY NOW\nEntry 3684.50\nSL 3676.20\nTP1 3692.00\nTP2 3701.40");
   const [sourceId, setSourceId] = useState(sources[0]?.id ?? "gold-sniper");
@@ -67,22 +69,27 @@ function TelegramPage() {
     }
   }
 
+  function hardDisconnect() {
+    disconnectTelegram();
+    toast("Telegram disconnected", { description: "Live feed stopped · listeners cleared" });
+  }
+
   return (
-    <div className="mx-auto flex max-w-[1400px] flex-col gap-4 p-4 md:p-6">
+    <div className="page-enter mx-auto flex max-w-[1400px] flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-subtle">Intake</p>
           <h1 className="mt-1 font-display text-2xl font-semibold tracking-[-0.03em]">Telegram</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            User session, not a bot. Every channel and group already on the account is readable — no admin rights required.
+            User session, not a bot. Disconnect fully stops the mock feed and clears listen/auto-trade flags.
           </p>
         </div>
         {telegram.connected ? (
-          <Button variant="outline" size="sm" onClick={disconnectTelegram}>
+          <Button variant="outline" size="sm" onClick={hardDisconnect}>
             Disconnect
           </Button>
         ) : (
-          <Button size="sm" onClick={() => setConnectOpen(true)}>
+          <Button size="sm" onClick={() => { setStep("phone"); setConnectOpen(true); }}>
             Connect session
           </Button>
         )}
@@ -91,16 +98,20 @@ function TelegramPage() {
       <Card className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm text-fg">
-            {telegram.connected ? `Signed in as @${telegram.user}` : "No Telegram session"}
+            {telegram.connected
+              ? `Signed in as @${telegram.user}`
+              : telegram.connecting
+                ? "Authorizing…"
+                : "No Telegram session"}
           </p>
           <p className="text-xs text-muted">
             {telegram.connected
-              ? `${sources.filter((s) => s.listening).length} chats listening · ${sources.filter((s) => s.autoTrade).length} auto-trade`
+              ? `${sources.filter((s) => s.listening).length} chats listening · ${sources.filter((s) => s.autoTrade).length} auto-trade · last feed ${telegram.lastIngestAt ? formatTime(telegram.lastIngestAt, now) : "—"}`
               : "Authorize once. VOLT reads messages; it never posts as the account."}
           </p>
         </div>
         <Badge variant={telegram.connected ? "live" : "outline"}>
-          {telegram.connected ? "session live" : "offline"}
+          {telegram.connected ? "session live" : telegram.connecting ? "connecting" : "offline"}
         </Badge>
       </Card>
 
@@ -123,14 +134,18 @@ function TelegramPage() {
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-4">
                   <label className="flex items-center gap-2 text-xs text-muted">
-                    <Switch checked={src.listening} onCheckedChange={(v) => patchSource(src.id, { listening: v })} />
+                    <Switch
+                      checked={src.listening}
+                      disabled={!telegram.connected}
+                      onCheckedChange={(v) => patchSource(src.id, { listening: v })}
+                    />
                     Listen
                   </label>
                   <label className="flex items-center gap-2 text-xs text-muted">
                     <Switch
                       checked={src.autoTrade}
                       onCheckedChange={(v) => patchSource(src.id, { autoTrade: v })}
-                      disabled={!src.listening}
+                      disabled={!src.listening || !telegram.connected}
                     />
                     Auto-trade
                   </label>
@@ -150,6 +165,7 @@ function TelegramPage() {
                 className="h-10 rounded-sm bg-bg-subtle px-3 text-sm shadow-[var(--shadow-border)]"
                 value={sourceId}
                 onChange={(e) => setSourceId(e.target.value)}
+                disabled={!telegram.connected}
               >
                 {sources.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -158,9 +174,11 @@ function TelegramPage() {
                 ))}
               </select>
               <Button
+                disabled={!telegram.connected}
                 onClick={() => {
                   const sig = ingestMessage(sourceId, draft, "you", true);
                   if (sig) toast(`Assigned ${sig.number}`);
+                  else toast("Connect Telegram first");
                 }}
               >
                 Ingest
@@ -224,7 +242,8 @@ function TelegramPage() {
           <DialogHeader>
             <DialogTitle>Telegram user session</DialogTitle>
             <DialogDescription>
-              Same login you use in the app. VOLT enumerates every dialog — channels, groups, DMs — without asking admins to add a bot.
+              Phone → login code → optional 2FA. Same flow as the official app. Session is paper-simulated in this
+              preview.
             </DialogDescription>
           </DialogHeader>
           {step === "phone" ? (
@@ -233,9 +252,10 @@ function TelegramPage() {
               <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
               <Button
                 className="w-full"
-                disabled={busy}
+                disabled={busy || !phone.trim()}
                 onClick={() => {
                   setBusy(true);
+                  beginTelegramConnect();
                   window.setTimeout(() => {
                     setBusy(false);
                     setStep("code");
@@ -245,21 +265,48 @@ function TelegramPage() {
                 Send code
               </Button>
             </div>
-          ) : (
+          ) : step === "code" ? (
             <div className="space-y-3">
               <Label htmlFor="code">Login code</Label>
               <Input id="code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="12345" />
+              <Button
+                className="w-full"
+                disabled={busy || code.length < 4}
+                onClick={() => {
+                  setBusy(true);
+                  window.setTimeout(() => {
+                    setBusy(false);
+                    setStep("2fa");
+                  }, 600);
+                }}
+              >
+                Continue
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <Label htmlFor="pw">Cloud password (if enabled)</Label>
+              <Input
+                id="pw"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Leave empty if none"
+              />
               <Button
                 className="w-full"
                 disabled={busy}
                 onClick={() => {
                   setBusy(true);
                   window.setTimeout(() => {
-                    connectTelegram("volt.desk", phone);
+                    const user = "volt.desk";
+                    connectTelegram(user, phone);
                     setBusy(false);
                     setConnectOpen(false);
                     setStep("phone");
-                    toast("Telegram session attached");
+                    setCode("");
+                    setPassword("");
+                    toast("Telegram session attached", { description: `Signed in as @${user}` });
                   }, 800);
                 }}
               >
