@@ -1,6 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { env } from "@/lib/env.server";
-
 export const Route = createFileRoute("/api/bridge/accounts")({
   server: {
     handlers: {
