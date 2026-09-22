@@ -13,6 +13,7 @@ import { Route as DeskRouteImport } from './routes/_desk'
 import { Route as DeskIndexRouteImport } from './routes/_desk/index'
 import { Route as DeskAccountsRouteImport } from './routes/_desk/accounts'
 import { Route as DeskBookRouteImport } from './routes/_desk/book'
+import { Route as DeskBridgeRouteImport } from './routes/_desk/bridge'
 import { Route as DeskHistoryRouteImport } from './routes/_desk/history'
 import { Route as DeskProvidersRouteImport } from './routes/_desk/providers'
 import { Route as DeskRiskRouteImport } from './routes/_desk/risk'
@@ -37,6 +38,11 @@ const DeskAccountsRoute = DeskAccountsRouteImport.update({
 const DeskBookRoute = DeskBookRouteImport.update({
   id: '/book',
   path: '/book',
+  getParentRoute: () => DeskRoute,
+} as any)
+const DeskBridgeRoute = DeskBridgeRouteImport.update({
+  id: '/bridge',
+  path: '/bridge',
   getParentRoute: () => DeskRoute,
 } as any)
 const DeskHistoryRoute = DeskHistoryRouteImport.update({
@@ -74,6 +80,7 @@ export interface FileRoutesByFullPath {
   '/': typeof DeskIndexRoute
   '/accounts': typeof DeskAccountsRoute
   '/book': typeof DeskBookRoute
+  '/bridge': typeof DeskBridgeRoute
   '/history': typeof DeskHistoryRoute
   '/providers': typeof DeskProvidersRoute
   '/risk': typeof DeskRiskRoute
@@ -84,6 +91,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/accounts': typeof DeskAccountsRoute
   '/book': typeof DeskBookRoute
+  '/bridge': typeof DeskBridgeRoute
   '/history': typeof DeskHistoryRoute
   '/providers': typeof DeskProvidersRoute
   '/risk': typeof DeskRiskRoute
@@ -97,6 +105,7 @@ export interface FileRoutesById {
   '/_desk': typeof DeskRouteWithChildren
   '/_desk/accounts': typeof DeskAccountsRoute
   '/_desk/book': typeof DeskBookRoute
+  '/_desk/bridge': typeof DeskBridgeRoute
   '/_desk/history': typeof DeskHistoryRoute
   '/_desk/providers': typeof DeskProvidersRoute
   '/_desk/risk': typeof DeskRiskRoute
@@ -111,6 +120,7 @@ export interface FileRouteTypes {
     | '/'
     | '/accounts'
     | '/book'
+    | '/bridge'
     | '/history'
     | '/providers'
     | '/risk'
@@ -121,6 +131,7 @@ export interface FileRouteTypes {
   to:
     | '/accounts'
     | '/book'
+    | '/bridge'
     | '/history'
     | '/providers'
     | '/risk'
@@ -133,6 +144,7 @@ export interface FileRouteTypes {
     | '/_desk'
     | '/_desk/accounts'
     | '/_desk/book'
+    | '/_desk/bridge'
     | '/_desk/history'
     | '/_desk/providers'
     | '/_desk/risk'
@@ -174,6 +186,13 @@ declare module '@tanstack/react-router' {
       path: '/book'
       fullPath: '/book'
       preLoaderRoute: typeof DeskBookRouteImport
+      parentRoute: typeof DeskRoute
+    }
+    '/_desk/bridge': {
+      id: '/_desk/bridge'
+      path: '/bridge'
+      fullPath: '/bridge'
+      preLoaderRoute: typeof DeskBridgeRouteImport
       parentRoute: typeof DeskRoute
     }
     '/_desk/history': {
@@ -224,6 +243,7 @@ declare module '@tanstack/react-router' {
 interface DeskRouteChildren {
   DeskAccountsRoute: typeof DeskAccountsRoute
   DeskBookRoute: typeof DeskBookRoute
+  DeskBridgeRoute: typeof DeskBridgeRoute
   DeskHistoryRoute: typeof DeskHistoryRoute
   DeskProvidersRoute: typeof DeskProvidersRoute
   DeskRiskRoute: typeof DeskRiskRoute
@@ -236,6 +256,7 @@ interface DeskRouteChildren {
 const DeskRouteChildren: DeskRouteChildren = {
   DeskAccountsRoute: DeskAccountsRoute,
   DeskBookRoute: DeskBookRoute,
+  DeskBridgeRoute: DeskBridgeRoute,
   DeskHistoryRoute: DeskHistoryRoute,
   DeskProvidersRoute: DeskProvidersRoute,
   DeskRiskRoute: DeskRiskRoute,

@@ -3,6 +3,7 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
   BookOpen,
+  Cable,
   CircuitBoard,
   History,
   LayoutGrid,
@@ -28,6 +29,7 @@ const NAV = [
   { to: "/signals", label: "Signals", icon: Activity },
   { to: "/book", label: "Positions", icon: BookOpen },
   { to: "/accounts", label: "Accounts", icon: Users },
+  { to: "/bridge", label: "Bridge", icon: Cable },
   { to: "/providers", label: "Providers", icon: Shield },
   { to: "/history", label: "History", icon: History },
   { to: "/risk", label: "Circuits", icon: CircuitBoard },
@@ -71,6 +73,7 @@ export function AppShell() {
   const accounts = useDesk((s) => s.accounts);
   const circuits = useDesk((s) => s.circuits);
   const telegram = useDesk((s) => s.telegram);
+  const bridge = useDesk((s) => s.bridge);
   const lastEvents = useDesk((s) => s.lastEvents);
   const setHalt = useDesk((s) => s.setHalt);
   const consumeEvents = useDesk((s) => s.consumeEvents);
@@ -87,7 +90,8 @@ export function AppShell() {
     if (!lastEvents.length) return;
     for (const ev of lastEvents) {
       if (ev.kind === "fill") toast(ev.text, { description: ev.latencyMs != null ? `${ev.latencyMs.toFixed(1)}ms` : undefined });
-      else if (ev.kind === "reject" || ev.kind === "circuit") toast(ev.text);
+      else if (ev.kind === "reject" || ev.kind === "circuit" || ev.kind === "bridge" || ev.kind === "telegram")
+        toast(ev.text);
     }
     consumeEvents();
   }, [lastEvents, consumeEvents]);
@@ -112,7 +116,7 @@ export function AppShell() {
             TG {telegram.connected ? "session" : "offline"}
           </span>
           <span className="hidden items-center gap-1.5 text-xs text-muted md:flex">
-            <span className={cn("size-1.5 rounded-full", online > 0 ? "bg-buy" : "bg-subtle")} />
+            <span className={cn("size-1.5 rounded-full", online > 0 && bridge.enabled ? "bg-buy" : "bg-subtle")} />
             {online}/{accounts.length} EA
           </span>
           <span className="hidden font-mono text-xs tabular text-muted lg:inline">{formatClock(now)}</span>
@@ -140,7 +144,7 @@ export function AppShell() {
             <p className="text-[10px] font-medium uppercase tracking-wide text-subtle">Engine</p>
             <p className="mt-1 font-mono text-xs tabular text-muted">in-memory · 220ms</p>
             <p className="mt-1 text-[11px] leading-snug text-subtle">
-              Local parser first. Grok only on demand.
+              Bridge {bridge.enabled ? "armed" : "idle"} · TG {telegram.connected ? "live" : "off"}
             </p>
           </div>
         </aside>
