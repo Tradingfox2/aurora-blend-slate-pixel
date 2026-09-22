@@ -1,5 +1,5 @@
 create table if not exists volt_broker_connections (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   user_id text not null,
   platform text not null check (platform in ('MT5','MT4')),
   broker text not null,
