@@ -130,7 +130,7 @@ let equityTimer: number | null = null;
 let bridgeTimer: number | null = null;
 
 const DEFAULT_BRIDGE: BridgeState = {
-  token: "volt_live_demo",
+  token: "",
   enabled: true,
   lastPollAt: null,
   heartbeats: 0,
@@ -153,7 +153,7 @@ export const useDesk = create<DeskState>((set, get) => {
       connecting: a.connecting ?? false,
       mfe: undefined,
       eaVersion: a.eaVersion ?? bridge.eaVersion,
-      lastHeartbeat: a.connected ? Date.now() : undefined,
+      lastHeartbeat: undefined,
     })),
     positions: seed.positions.map((p) => ({ ...p, mfe: p.mfe ?? 0, mae: p.mae ?? 0 })),
     history: seed.history.map((h) => ({
@@ -264,76 +264,77 @@ export const useDesk = create<DeskState>((set, get) => {
       const s = get();
       const signal = s.signals.find((x) => x.id === signalId);
       if (!signal?.parsed) return;
-      const riskT0 = performance.now();
       const parsed = signal.parsed;
-      const routeT0 = performance.now();
-      const result =
-        parsed.action === "open"
-          ? applyOpen(
-              {
-                ...s,
-                now: Date.now(),
-                signals: s.signals.map((x) =>
-                  x.id === signalId
-                    ? {
-                        ...x,
-                        latency: {
-                          ...x.latency,
-                          riskMs: routeT0 - riskT0,
-                        },
-                      }
-                    : x,
-                ),
-              },
-              signal,
-              parsed,
-              s.settings,
-            )
-          : applyManage({ ...s, now: Date.now() }, signal, parsed);
-      const fillMs = performance.now() - routeT0;
-      const signals = result.signals.map((x) =>
-        x.id === signalId
-          ? {
-              ...x,
-              latency: {
-                ...x.latency,
-                routeMs: fillMs,
-                fillMs,
-                totalMs: x.latency.parseMs + fillMs,
-              },
-            }
-          : x,
-      );
-      set(mergeApply(s, { ...result, signals }));
 
-      // Live mode: persist execution instructions for connected MT4/MT5 terminals.
-      // Paper mode continues to update the local engine, but never queues broker orders.
-      if (!s.settings.paper && s.bridge?.enabled) {
-        const routed = result.positions.filter((p) => p.signalId === signalId);
-        for (const account of s.accounts.filter((a) => a.connected && !a.frozen && a.receivesSignals)) {
-          const position = routed.find((p) => p.accountId === account.id);
-          if (!position) continue;
+      // LIVE is broker-authoritative. Never create a local position/fill first.
+      if (!s.settings.paper) {
+        if (s.circuits.globalHalt) return;
+        const riskT0 = performance.now();
+        const result = parsed.action === "open"
+          ? applyOpen({ ...s, now: Date.now() }, signal, parsed, s.settings)
+          : null;
+
+        const accounts = s.accounts.filter((a) => a.connected && !a.frozen && a.receivesSignals);
+        if (!accounts.length) {
+          set({ signals: s.signals.map(x => x.id === signalId ? {...x,status:"failed",note:"No confirmed broker terminal heartbeat"} : x) });
+          return;
+        }
+
+        if (parsed.action === "open" && result) {
+          const routed = result.positions.filter((p) => p.signalId === signalId);
+          if (!routed.length) return;
+          set({
+            signals: s.signals.map(x => x.id === signalId ? {
+              ...x, status:"routed",
+              latency:{...x.latency,riskMs:performance.now()-riskT0}
+            } : x),
+            log:[{id:`ev_route_${Date.now()}`,at:Date.now(),kind:"bridge",text:`Live order queued · signal ${signal.number}`,signalNumber:signal.number},...s.log].slice(0,160),
+            lastEvents:[],
+          });
+          for (const account of accounts) {
+            const position = routed.find(p => p.accountId === account.id) ?? routed[0];
+            void enqueueBridgeCommand({
+              login: account.login, platform: account.platform, type:"open_market",
+              payload:{
+                accountId:account.id, signalId, symbol:position.symbol, side:position.side,
+                lots:position.lots, sl:position.sl, tp:position.tp, magic:position.magic,
+                comment:position.comment, clientTicket:position.ticket,
+              }
+            });
+          }
+          return;
+        }
+
+        const commandType = parsed.action === "close" ? "close_position"
+          : parsed.action === "partial" ? "partial_close"
+          : parsed.action === "modify" ? "modify_position"
+          : parsed.action === "be" ? "break_even"
+          : parsed.action === "delete" ? "cancel_order" : null;
+        if (!commandType) return;
+        set({signals:s.signals.map(x=>x.id===signalId?{...x,status:"routed",note:"Live command queued; awaiting broker acknowledgement"}:x)});
+        for(const account of accounts){
           void enqueueBridgeCommand({
-            data: {
-              login: account.login,
-              platform: account.platform,
-              type: "open_market",
-              payload: {
-                accountId: account.id,
-                signalId,
-                ticket: position.ticket,
-                symbol: position.symbol,
-                side: position.side,
-                lots: position.lots,
-                sl: position.sl,
-                tp: position.tp,
-                magic: position.magic,
-                comment: position.comment,
-              },
-            },
+            login:account.login, platform:account.platform, type:commandType,
+            payload:{accountId:account.id,signalId,symbol:parsed.symbol,side:parsed.side,closePct:parsed.closePct,newSl:parsed.newSl,newTp:parsed.newTp,signalRef:parsed.signalRef,comment:parsed.comment}
           });
         }
+        return;
       }
+
+      // PAPER mode may use the local deterministic engine.
+      const riskT0 = performance.now();
+      const routeT0 = performance.now();
+      const result = parsed.action === "open"
+        ? applyOpen({ ...s, now: Date.now() }, signal, parsed, s.settings)
+        : applyManage({ ...s, now: Date.now() }, signal, parsed);
+      const fillMs = performance.now() - routeT0;
+      const signals = result.signals.map((x) =>
+        x.id === signalId ? {
+          ...x,
+          latency:{...x.latency,riskMs:routeT0-riskT0,routeMs:fillMs,fillMs,totalMs:x.latency.parseMs+fillMs}
+        } : x
+      );
+      set(mergeApply(s,{...result,signals}));
     },
 
     ignoreSignal: (signalId) => {
@@ -437,11 +438,9 @@ export const useDesk = create<DeskState>((set, get) => {
 
     beginAccountConnect: (id) => {
       set((s) => ({
-        accounts: s.accounts.map((a) => (a.id === id ? { ...a, connecting: true } : a)),
+        accounts: s.accounts.map((a) => (a.id === id ? { ...a, connecting: false, connected: false, frozen: true } : a)),
+        log:[{id:`ev_acc_block_${Date.now()}`,at:Date.now(),kind:"reject",text:`EA connection requires an authenticated bridge heartbeat · ${id}`},...s.log].slice(0,160),
       }));
-      window.setTimeout(() => {
-        get().setAccountConnected(id, true);
-      }, 1100);
     },
 
     patchAccount: (id, patch) => {
@@ -477,7 +476,8 @@ export const useDesk = create<DeskState>((set, get) => {
     },
 
     pulseBridge: () => {
-      const now = Date.now();
+      // Never manufacture broker heartbeats in the browser. The EA heartbeat endpoint is authoritative.
+      return; /*
       set((s) => {
         const bridge = s.bridge ?? DEFAULT_BRIDGE;
         return {
@@ -507,7 +507,7 @@ export const useDesk = create<DeskState>((set, get) => {
           ].slice(0, 160),
         };
       });
-    },
+    }, */
 
     bulk: (mode) => {
       const s = get();
