@@ -138,6 +138,29 @@ void ProcessHeartbeat(string response)
    SendFill(commandId,"opened",ticket,symbol,side,lots,price,0);
 }
 
+void SendState()
+{
+   string positions="[";
+   bool first=true;
+   for(int i=OrdersTotal()-1;i>=0;i--)
+   {
+      if(!OrderSelect(i,SELECT_BY_POS,MODE_TRADES)) continue;
+      int type=OrderType();
+      if(type!=OP_BUY && type!=OP_SELL) continue;
+      if(!first) positions+=",";
+      first=false;
+      string side=(type==OP_BUY) ? "buy" : "sell";
+      positions+=StringFormat("{\"ticket\":\"%d\",\"symbol\":\"%s\",\"side\":\"%s\",\"lots\":%.8f,\"openPrice\":%.8f,\"sl\":%.8f,\"tp\":%.8f,\"magic\":%d,\"comment\":\"%s\",\"profit\":%.8f,\"openTime\":%d}",
+         OrderTicket(),OrderSymbol(),side,OrderLots(),OrderOpenPrice(),OrderStopLoss(),OrderTakeProfit(),
+         OrderMagicNumber(),OrderComment(),OrderProfit()+OrderSwap()+OrderCommission(),OrderOpenTime());
+   }
+   positions+="]";
+   string body=StringFormat("{\"login\":\"%d\",\"platform\":\"MT4\",\"positions\":%s,\"orders\":[]}",
+      AccountNumber(),positions);
+   string response;
+   PostJson("/api/bridge/state",body,response);
+}
+
 void Heartbeat()
 {
    string body=StringFormat(
@@ -146,7 +169,10 @@ void Heartbeat()
 
    string response;
    if(PostJson("/api/bridge/heartbeat",body,response))
+   {
       ProcessHeartbeat(response);
+      SendState();
+   }
 }
 
 int OnInit()
