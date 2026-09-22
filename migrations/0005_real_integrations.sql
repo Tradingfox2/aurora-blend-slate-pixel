@@ -34,6 +34,3 @@ create table if not exists volt_telegram_sources (
   worker_status text not null default 'disconnected',
   updated_at timestamptz not null default now()
 );
-
-create index if not exists volt_bridge_commands_lease_idx
-  on volt_bridge_commands (login, platform, status, claimed_at);
