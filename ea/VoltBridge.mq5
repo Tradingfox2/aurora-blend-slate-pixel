@@ -221,6 +221,31 @@ void ProcessCommands(const string response)
    }
 }
 
+void SendState()
+{
+   string positions="[";
+   bool first=true;
+   for(int i=0;i<PositionsTotal();i++)
+   {
+      ulong ticket=PositionGetTicket(i);
+      if(ticket==0 || !PositionSelectByTicket(ticket)) continue;
+      string symbol=PositionGetString(POSITION_SYMBOL);
+      long type=PositionGetInteger(POSITION_TYPE);
+      string side=(type==POSITION_TYPE_BUY) ? "buy" : "sell";
+      if(!first) positions+=",";
+      first=false;
+      positions+=StringFormat("{\"ticket\":\"%I64u\",\"symbol\":\"%s\",\"side\":\"%s\",\"lots\":%.8f,\"openPrice\":%.8f,\"sl\":%.8f,\"tp\":%.8f,\"magic\":%I64d,\"comment\":\"%s\",\"profit\":%.8f,\"openTime\":%I64d}",
+         ticket,symbol,side,PositionGetDouble(POSITION_VOLUME),PositionGetDouble(POSITION_PRICE_OPEN),
+         PositionGetDouble(POSITION_SL),PositionGetDouble(POSITION_TP),PositionGetInteger(POSITION_MAGIC),
+         PositionGetString(POSITION_COMMENT),PositionGetDouble(POSITION_PROFIT),PositionGetInteger(POSITION_TIME));
+   }
+   positions+="]";
+   string body=StringFormat("{\"login\":\"%I64d\",\"platform\":\"MT5\",\"positions\":%s,\"orders\":[]}",
+      (long)AccountInfoInteger(ACCOUNT_LOGIN),positions);
+   string response;
+   PostJson("/api/bridge/state",body,response);
+}
+
 void SendHeartbeat()
 {
    string body = StringFormat(
@@ -238,6 +263,7 @@ void SendHeartbeat()
    {
       g_lastHeartbeat = TimeCurrent();
       ProcessCommands(response);
+      SendState();
    }
 }
 
