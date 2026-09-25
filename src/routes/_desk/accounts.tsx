@@ -58,7 +58,10 @@ function AccountsPage() {
             Connect runs the EA handshake (token on Bridge page).
           </p>
         </div>
-        <AddAccountDialog open={open} onOpenChange={setOpen} onAdd={addAccount} />
+        <div className="flex flex-wrap gap-2">
+          <DirectMT5Dialog />
+          <AddAccountDialog open={open} onOpenChange={setOpen} onAdd={addAccount} />
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -281,6 +284,78 @@ function Num({ label, value, onChange }: { label: string; value: number; onChang
         onChange={(e) => onChange(Number(e.target.value))}
       />
     </label>
+  );
+}
+
+function DirectMT5Dialog() {
+  const refreshLiveState = useDesk((s) => s.refreshLiveState);
+  const [open, setOpen] = useState(false);
+  const [broker, setBroker] = useState("");
+  const [server, setServer] = useState("");
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
+  const [environment, setEnvironment] = useState<"demo" | "live">("demo");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit() {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/accounts/mt5/connect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ broker, server, login, password, environment }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to connect MT5 account");
+      setPassword("");
+      setOpen(false);
+      toast("MT5 connection queued", { description: "VOLT will connect the account through the server-side connector." });
+      window.setTimeout(() => void refreshLiveState(), 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to connect MT5 account");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">Connect MT5 directly</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Connect MT5 directly</DialogTitle>
+          <DialogDescription>
+            Enter the broker login once. VOLT encrypts the password and the persistent MT5 connector handles the terminal connection.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <Field label="Broker"><Input value={broker} onChange={(e) => setBroker(e.target.value)} placeholder="Broker name" /></Field>
+          <Field label="MT5 server"><Input value={server} onChange={(e) => setServer(e.target.value)} placeholder="Broker-Live 01" /></Field>
+          <Field label="Login"><Input value={login} onChange={(e) => setLogin(e.target.value)} inputMode="numeric" placeholder="12345678" /></Field>
+          <Field label="Trading password"><Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="off" placeholder="••••••••" /></Field>
+          <Field label="Environment">
+            <Select value={environment} onValueChange={(v) => setEnvironment(v as "demo" | "live")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="demo">Demo</SelectItem>
+                <SelectItem value="live">Live</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          {error ? <p className="text-xs text-sell">{error}</p> : null}
+          <Button disabled={busy || !broker || !server || !login || !password} onClick={() => void submit()}>
+            {busy ? "Connecting…" : "Connect account"}
+          </Button>
+          <p className="text-[11px] text-muted">
+            Live trading remains disabled until you explicitly enable it after the account reports connected.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
