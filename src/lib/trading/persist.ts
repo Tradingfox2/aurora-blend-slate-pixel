@@ -83,7 +83,7 @@ export const enqueueBridgeCommand = createServerFn({ method: "POST" })
       const sql = await getSql();
 
       const owned = await sql.query(
-        `select id, trading_enabled, status
+        `select id, trading_enabled, status, connector_id
            from volt_broker_connections
           where user_id=$1 and login=$2 and platform=$3
           limit 1`,
@@ -92,6 +92,7 @@ export const enqueueBridgeCommand = createServerFn({ method: "POST" })
       if (!owned[0]) return { ok: false as const, error: "account_not_owned" };
       const status = String(owned[0].status);
       const tradingEnabled = Boolean(owned[0].trading_enabled);
+      const connectionId = String(owned[0].id);
 
       if (!["connected", "connecting"].includes(status)) {
         return { ok: false as const, error: "account_not_connected" };
@@ -102,9 +103,9 @@ export const enqueueBridgeCommand = createServerFn({ method: "POST" })
 
       const id = `cmd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
       await sql.query(
-        `insert into volt_bridge_commands(id,login,platform,command_type,payload_json)
-         values($1,$2,$3,$4,$5)`,
-        [id, data.login, data.platform, data.type, JSON.stringify(data.payload)],
+        `insert into volt_bridge_commands(id,login,platform,command_type,payload_json,connection_id)
+         values($1,$2,$3,$4,$5,$6)`,
+        [id, data.login, data.platform, data.type, JSON.stringify(data.payload), connectionId],
       );
       return { ok: true as const, id };
     } catch (error) {
