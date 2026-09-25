@@ -37,6 +37,20 @@ def main():
         for connection_id, proc in list(children.items()):
             if proc.poll() is not None:
                 children.pop(connection_id, None)
+                try:
+                    requests.post(
+                        f"{API}/api/internal/mt5/status",
+                        headers={"Authorization": f"Bearer {CONNECTOR_TOKEN}"},
+                        json={
+                            "id": connection_id,
+                            "connectorId": CONNECTOR_ID,
+                            "status": "error",
+                            "error": f"account_worker_exit:{proc.returncode}",
+                        },
+                        timeout=20,
+                    )
+                except Exception:
+                    pass
 
         try:
             job = claim_job()
