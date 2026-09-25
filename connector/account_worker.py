@@ -245,7 +245,7 @@ def poll_commands():
     r = requests.get(
         f"{API}/api/bridge/commands",
         headers=bridge_headers(),
-        params={"login": str(LOGIN), "platform": "MT5"},
+        params={"login": str(LOGIN), "platform": "MT5", "connectionId": CONNECTION_ID},
         timeout=20,
     )
     r.raise_for_status()
