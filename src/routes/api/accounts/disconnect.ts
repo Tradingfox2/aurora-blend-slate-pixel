@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/accounts/disconnect")({
         const { getSql } = await import("@/lib/db");
         const sql = await getSql();
         const rows = await sql.query(
-          `update volt_broker_connections set status='disconnected', trading_enabled=false, updated_at=now()
+          `update volt_broker_connections set status='disconnected', trading_enabled=false, connector_id=null, updated_at=now()
              where id=$1 and user_id=$2 returning id, status, trading_enabled`,
           [id, userId],
         );
