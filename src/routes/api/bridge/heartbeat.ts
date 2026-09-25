@@ -19,12 +19,23 @@ export const Route = createFileRoute("/api/bridge/heartbeat")({
 
         const login = String(body.login ?? request.headers.get("x-volt-login") ?? "");
         const platform = String(body.platform ?? request.headers.get("x-volt-platform") ?? "");
+        const connectionId = String(body.connectionId ?? "");
+        const connectorId = String(body.connectorId ?? "");
         if (!login || !["MT4", "MT5"].includes(platform)) {
           return Response.json({ ok: false, error: "missing_login_or_platform" }, { status: 400 });
         }
 
         const { getSql } = await import("@/lib/db");
         const sql = await getSql();
+        if (connectionId && connectorId) {
+          await sql.query(
+            `update volt_broker_connections
+                set status='connected', connector_id=$1, last_seen_at=now(), updated_at=now(), last_error=null
+              where id=$2 and (connector_id is null or connector_id=$1)`,
+            [connectorId, connectionId],
+          );
+        }
+
         await sql.query(
           `insert into volt_bridge_accounts
             (login, platform, server, broker, balance, equity, margin, ea_version, ping_ms, last_heartbeat, connected)
