@@ -77,8 +77,29 @@ export const enqueueBridgeCommand = createServerFn({ method: "POST" })
   }) => input)
   .handler(async ({ data }) => {
     try {
+      const { requireUserId } = await import("@/lib/auth/verify.server");
+      const userId = await requireUserId();
       const { getSql } = await import("@/lib/db");
       const sql = await getSql();
+
+      const owned = await sql.query(
+        `select id, trading_enabled, status
+           from volt_broker_connections
+          where user_id=$1 and login=$2 and platform=$3
+          limit 1`,
+        [userId, data.login, data.platform],
+      );
+      if (!owned[0]) return { ok: false as const, error: "account_not_owned" };
+      const status = String(owned[0].status);
+      const tradingEnabled = Boolean(owned[0].trading_enabled);
+
+      if (!["connected", "connecting"].includes(status)) {
+        return { ok: false as const, error: "account_not_connected" };
+      }
+      if (data.type === "open_market" && !tradingEnabled) {
+        return { ok: false as const, error: "live_trading_disabled" };
+      }
+
       const id = `cmd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
       await sql.query(
         `insert into volt_bridge_commands(id,login,platform,command_type,payload_json)
