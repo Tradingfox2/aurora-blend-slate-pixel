@@ -101,7 +101,7 @@ def state():
 
 def report(command, event, ticket, symbol, side, lots=0, price=None, profit=None, error=None):
     payload = {
-        "login": str(LOGIN), "platform": "MT5", "commandId": command["id"],
+        "login": str(LOGIN), "platform": "MT5", "connectionId": CONNECTION_ID, "commandId": command["id"],
         "ticket": int(ticket), "event": event, "symbol": symbol, "side": side,
         "lots": float(lots), "price": price, "profit": profit,
     }
