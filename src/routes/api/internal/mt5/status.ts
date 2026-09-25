@@ -30,7 +30,7 @@ export const Route = createFileRoute("/api/internal/mt5/status")({
             set status=$1, connector_id=$2, last_error=$3,
                 last_seen_at=case when $1='connected' then now() else last_seen_at end,
                 updated_at=now()
-          where id=$4
+          where id=$4 and (connector_id is null or connector_id=$2)
           returning id, status, trading_enabled, last_error, last_seen_at`,
         [status, connectorId, body.error ? String(body.error).slice(0, 1000) : null, id],
       );
