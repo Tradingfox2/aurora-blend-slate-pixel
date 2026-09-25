@@ -398,6 +398,7 @@ export const useDesk = create<DeskState>((set, get) => {
 
     tick: () => {
       const s = get();
+      if (!s.settings.paper) return;
       const now = Date.now();
       const quotes = tickQuotes(s.quotes, now);
       let next: DeskSnapshot = { ...s, quotes, now };
@@ -675,7 +676,11 @@ export const useDesk = create<DeskState>((set, get) => {
         const data = await response.json() as { accounts?: Account[]; positions?: Position[]; orders?: DeskSnapshot["orders"] };
         const accounts = Array.isArray(data.accounts) ? data.accounts : [];
         set({
-          accounts: accounts.map((a) => ({ ...a, receivesSignals: false, frozen: false })),
+          accounts: accounts.map((a) => ({
+            ...a,
+            receivesSignals: Boolean((a as Account & { tradingEnabled?: boolean }).tradingEnabled),
+            frozen: !Boolean((a as Account & { tradingEnabled?: boolean }).tradingEnabled),
+          })),
           positions: Array.isArray(data.positions) ? data.positions : [],
           orders: Array.isArray(data.orders) ? data.orders : [],
           history: [],
