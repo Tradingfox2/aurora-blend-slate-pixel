@@ -55,6 +55,8 @@ def heartbeat():
         "platform": "MT5",
         "server": str(info.server or SERVER),
         "broker": BROKER,
+        "connectionId": CONNECTION_ID,
+        "connectorId": CONNECTOR_ID,
         "balance": float(info.balance),
         "equity": float(info.equity),
         "margin": float(info.margin),
@@ -284,7 +286,10 @@ def main():
         status("error", str(exc))
         raise
     finally:
-        mt5.shutdown()
+        try:
+            status("disconnected")
+        finally:
+            mt5.shutdown()
 
 
 if __name__ == "__main__":
