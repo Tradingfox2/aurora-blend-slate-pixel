@@ -22,7 +22,7 @@ import { Ticker } from "@/components/layout/ticker";
 import { formatClock, formatSignedUsd, sessionName } from "@/lib/trading/format";
 import { startDesk, stopDesk, useDesk } from "@/lib/trading/store";
 import { cn } from "@/lib/utils";
-import { UserButton, SignInButtons } from "@/lib/auth/gates";
+import { UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
 const NAV = [
