@@ -22,6 +22,8 @@ import { Ticker } from "@/components/layout/ticker";
 import { formatClock, formatSignedUsd, sessionName } from "@/lib/trading/format";
 import { startDesk, stopDesk, useDesk } from "@/lib/trading/store";
 import { cn } from "@/lib/utils";
+import { UserButton, SignInButtons } from "@/lib/auth/gates";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
 const NAV = [
   { to: "/", label: "Desk", icon: LayoutGrid },
@@ -80,6 +82,7 @@ export function AppShell() {
   const equity = accounts.reduce((sum, a) => sum + a.equity, 0);
   const floating = accounts.reduce((sum, a) => sum + (a.equity - a.balance), 0);
   const online = accounts.filter((a) => a.connected).length;
+  const { user, isPending } = useCurrentUserState();
 
   useEffect(() => {
     startDesk();
@@ -130,6 +133,8 @@ export function AppShell() {
               {formatSignedUsd(floating)}
             </span>
           </div>
+          {!isPending && !user ? <Link to="/login" className="text-xs font-medium text-buy hover:underline">Sign in</Link> : null}
+          <UserButton />
           <label className="flex items-center gap-2 text-xs text-muted">
             <span className="hidden sm:inline">Halt</span>
             <Switch checked={circuits.globalHalt} onCheckedChange={setHalt} aria-label="Global halt" />
